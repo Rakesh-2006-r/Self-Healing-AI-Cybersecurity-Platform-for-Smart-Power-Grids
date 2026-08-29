@@ -1,0 +1,338 @@
+{
+  "topology": "IEEE_14_BUS",
+  "description": "IEEE 14-Bus Test Case - Standard benchmark for smart grid cybersecurity evaluation",
+  "base_mva": 100.0,
+  "frequency_hz": 50.0,
+  "buses": [
+    {
+      "id": 1,
+      "name": "Bus-01 (Slack/Gen)",
+      "type": "SLACK",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.06,
+      "load_mw": 0.0,
+      "gen_mw": 232.4,
+      "critical_facility": "Main Generation Station"
+    },
+    {
+      "id": 2,
+      "name": "Bus-02 (PV/Gen)",
+      "type": "PV",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.045,
+      "load_mw": 21.7,
+      "gen_mw": 40.0,
+      "critical_facility": "Substation Control Center (HQ)"
+    },
+    {
+      "id": 3,
+      "name": "Bus-03 (PV/Gen)",
+      "type": "PV",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.01,
+      "load_mw": 94.2,
+      "gen_mw": 0.0,
+      "critical_facility": "Industrial Manufacturing Zone"
+    },
+    {
+      "id": 4,
+      "name": "Bus-04 (Load/Transit)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.019,
+      "load_mw": 47.8,
+      "gen_mw": 0.0,
+      "critical_facility": "Municipal Water Pumping"
+    },
+    {
+      "id": 5,
+      "name": "Bus-05 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.02,
+      "load_mw": 7.6,
+      "gen_mw": 0.0,
+      "critical_facility": "Railway Traction Substation"
+    },
+    {
+      "id": 6,
+      "name": "Bus-06 (PV/Gen)",
+      "type": "PV",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.07,
+      "load_mw": 11.2,
+      "gen_mw": 0.0,
+      "critical_facility": "Data Center Cluster"
+    },
+    {
+      "id": 7,
+      "name": "Bus-07 (Transit)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.062,
+      "load_mw": 0.0,
+      "gen_mw": 0.0,
+      "critical_facility": null
+    },
+    {
+      "id": 8,
+      "name": "Bus-08 (PV/Gen)",
+      "type": "PV",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.09,
+      "load_mw": 0.0,
+      "gen_mw": 0.0,
+      "critical_facility": "Renewable Energy Park"
+    },
+    {
+      "id": 9,
+      "name": "Bus-09 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.056,
+      "load_mw": 29.5,
+      "gen_mw": 0.0,
+      "critical_facility": "Residential District A"
+    },
+    {
+      "id": 10,
+      "name": "Bus-10 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.051,
+      "load_mw": 9.0,
+      "gen_mw": 0.0,
+      "critical_facility": "Hospital Complex"
+    },
+    {
+      "id": 11,
+      "name": "Bus-11 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.057,
+      "load_mw": 3.5,
+      "gen_mw": 0.0,
+      "critical_facility": null
+    },
+    {
+      "id": 12,
+      "name": "Bus-12 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.055,
+      "load_mw": 6.1,
+      "gen_mw": 0.0,
+      "critical_facility": "Airport Terminal"
+    },
+    {
+      "id": 13,
+      "name": "Bus-13 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.05,
+      "load_mw": 13.5,
+      "gen_mw": 0.0,
+      "critical_facility": "Smart City Hub"
+    },
+    {
+      "id": 14,
+      "name": "Bus-14 (Load)",
+      "type": "PQ",
+      "base_kv": 132.0,
+      "nominal_v_pu": 1.036,
+      "load_mw": 14.9,
+      "gen_mw": 0.0,
+      "critical_facility": "Chemical Plant (Tier 1)"
+    }
+  ],
+  "branches": [
+    {
+      "id": 1,
+      "from": 1,
+      "to": 2,
+      "r": 0.01938,
+      "x": 0.05917,
+      "b": 0.0528,
+      "rate_mva": 200.0
+    },
+    {
+      "id": 2,
+      "from": 1,
+      "to": 5,
+      "r": 0.05403,
+      "x": 0.22304,
+      "b": 0.0492,
+      "rate_mva": 100.0
+    },
+    {
+      "id": 3,
+      "from": 2,
+      "to": 3,
+      "r": 0.04699,
+      "x": 0.19797,
+      "b": 0.0438,
+      "rate_mva": 100.0
+    },
+    {
+      "id": 4,
+      "from": 2,
+      "to": 4,
+      "r": 0.05811,
+      "x": 0.17632,
+      "b": 0.034,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 5,
+      "from": 2,
+      "to": 5,
+      "r": 0.05695,
+      "x": 0.17388,
+      "b": 0.0346,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 6,
+      "from": 3,
+      "to": 4,
+      "r": 0.06701,
+      "x": 0.17103,
+      "b": 0.0128,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 7,
+      "from": 4,
+      "to": 5,
+      "r": 0.01335,
+      "x": 0.04211,
+      "b": 0.0,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 8,
+      "from": 4,
+      "to": 7,
+      "r": 0.0,
+      "x": 0.20912,
+      "b": 0.0,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 9,
+      "from": 4,
+      "to": 9,
+      "r": 0.0,
+      "x": 0.55618,
+      "b": 0.0,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 10,
+      "from": 5,
+      "to": 6,
+      "r": 0.0,
+      "x": 0.25202,
+      "b": 0.0,
+      "rate_mva": 60.0
+    },
+    {
+      "id": 11,
+      "from": 6,
+      "to": 11,
+      "r": 0.09498,
+      "x": 0.1989,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 12,
+      "from": 6,
+      "to": 12,
+      "r": 0.12291,
+      "x": 0.25581,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 13,
+      "from": 6,
+      "to": 13,
+      "r": 0.06615,
+      "x": 0.13027,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 14,
+      "from": 7,
+      "to": 8,
+      "r": 0.0,
+      "x": 0.17615,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 15,
+      "from": 7,
+      "to": 9,
+      "r": 0.0,
+      "x": 0.11001,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 16,
+      "from": 9,
+      "to": 10,
+      "r": 0.03181,
+      "x": 0.0845,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 17,
+      "from": 9,
+      "to": 14,
+      "r": 0.12711,
+      "x": 0.27038,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 18,
+      "from": 10,
+      "to": 11,
+      "r": 0.08205,
+      "x": 0.19207,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 19,
+      "from": 12,
+      "to": 13,
+      "r": 0.22092,
+      "x": 0.19988,
+      "b": 0.0,
+      "rate_mva": 40.0
+    },
+    {
+      "id": 20,
+      "from": 13,
+      "to": 14,
+      "r": 0.17093,
+      "x": 0.34802,
+      "b": 0.0,
+      "rate_mva": 40.0
+    }
+  ],
+  "total_load_mw": 259.0,
+  "total_gen_mw": 272.4,
+  "voltage_limits": {
+    "min_pu": 0.94,
+    "max_pu": 1.1,
+    "critical_min_pu": 0.85,
+    "critical_max_pu": 1.15
+  }
+}

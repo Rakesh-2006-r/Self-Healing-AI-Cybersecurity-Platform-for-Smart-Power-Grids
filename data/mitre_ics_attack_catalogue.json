@@ -1,0 +1,56 @@
+{
+  "version": "ATT&CK-ICS-v14",
+  "generated": "2026-08-29",
+  "attacks": [
+    {
+      "mitre_id": "T0831",
+      "technique": "Manipulation of Control",
+      "tactic": "Inhibit Response Function",
+      "attack_type": "FDIA",
+      "severity": "CRITICAL",
+      "target_component": "RTU / State Estimator",
+      "description": "Coordinated False Data Injection on SCADA measurements to bypass Bad Data Detection in WLS state estimation.",
+      "mitigation": "GNN anomaly scoring, PMU cross-validation, RTU stream isolation, WLS re-estimation."
+    },
+    {
+      "mitre_id": "T0814",
+      "technique": "Denial of Service",
+      "tactic": "Inhibit Response Function",
+      "attack_type": "DDOS",
+      "severity": "HIGH",
+      "target_component": "Substation RTU / IED",
+      "description": "Flood attack on substation communication channels causing packet drop > 35% and loss of PMU sync lock.",
+      "mitigation": "SCADA firewall rate limiting, secondary out-of-band link failover, local relay autonomous control."
+    },
+    {
+      "mitre_id": "T0855",
+      "technique": "Unauthorized Command Message",
+      "tactic": "Impair Process Control",
+      "attack_type": "BREAKER_HIJACK",
+      "severity": "CRITICAL",
+      "target_component": "Substation Breaker / IED",
+      "description": "Adversary sends unauthorized trip commands to substation circuit breakers causing uncontrolled line disconnection.",
+      "mitigation": "Credential revocation, tie-switch automated closing, N-1 stability verification."
+    },
+    {
+      "mitre_id": "T0830",
+      "technique": "Adversary-in-the-Middle",
+      "tactic": "Collection",
+      "attack_type": "REPLAY_ATTACK",
+      "severity": "MEDIUM",
+      "target_component": "PMU / SCADA Channel",
+      "description": "Adversary captures and replays stale synchrophasor measurements to mask real-time grid disturbances.",
+      "mitigation": "PMU timestamp validation, sequence number verification, anomaly detection on measurement staleness."
+    },
+    {
+      "mitre_id": "T0836",
+      "technique": "Modify Parameter",
+      "tactic": "Impair Process Control",
+      "attack_type": "PARAMETER_MANIPULATION",
+      "severity": "HIGH",
+      "target_component": "EMS / SCADA HMI",
+      "description": "Adversary modifies setpoints or thresholds in Energy Management System to cause suboptimal or dangerous dispatch.",
+      "mitigation": "Setpoint change audit logging, dual-approval authorization, automated revert on constraint violation."
+    }
+  ]
+}

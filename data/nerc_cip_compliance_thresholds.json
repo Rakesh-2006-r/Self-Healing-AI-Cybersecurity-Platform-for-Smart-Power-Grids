@@ -1,0 +1,38 @@
+{
+  "standard": "NERC CIP v7 + IEEE 1547-2018 + IEEE 1159",
+  "voltage_limits": {
+    "min_pu": 0.94,
+    "max_pu": 1.1,
+    "critical_min_pu": 0.85,
+    "critical_max_pu": 1.15,
+    "unit": "per unit (pu)"
+  },
+  "frequency_limits": {
+    "nominal_hz": 50.0,
+    "deviation_warning_hz": 0.2,
+    "deviation_critical_hz": 0.5,
+    "unit": "Hz"
+  },
+  "loading_limits": {
+    "thermal_warning_pct": 80.0,
+    "thermal_critical_pct": 100.0,
+    "unit": "percent of rated MVA"
+  },
+  "packet_loss_limits": {
+    "warning_pct": 5.0,
+    "critical_pct": 35.0,
+    "unit": "percent"
+  },
+  "recovery_targets": {
+    "mttr_ms": 5.0,
+    "restoration_target_pct": 100.0,
+    "n1_compliance": true
+  },
+  "cyber_standards": [
+    "NERC CIP-005-6",
+    "NERC CIP-007-6",
+    "IEC 62351",
+    "IEC 61850"
+  ],
+  "generated": "2026-08-29"
+}

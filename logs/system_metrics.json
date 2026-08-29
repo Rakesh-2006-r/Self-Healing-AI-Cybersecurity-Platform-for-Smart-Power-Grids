@@ -1,0 +1,22 @@
+{
+  "platform": "AEGIS-GRID v2.0",
+  "session": "2026-08-29",
+  "total_incidents_resolved": 4,
+  "total_cyber_attacks_detected": 4,
+  "total_avoided_loss_usd": 186100.0,
+  "mean_time_to_recover_ms": 1.22,
+  "min_mttr_ms": 0.98,
+  "max_mttr_ms": 1.47,
+  "average_restoration_pct": 100.0,
+  "gnn_detection_accuracy_pct": 100.0,
+  "false_positive_rate_pct": 0.0,
+  "attack_types_resolved": {
+    "FDIA": 2,
+    "DDOS": 1,
+    "BREAKER_HIJACK": 1
+  },
+  "nerc_cip_compliance": true,
+  "ieee_1547_compliance": true,
+  "modules_online": 10,
+  "uptime_pct": 100.0
+}
