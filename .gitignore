@@ -21,7 +21,7 @@ ENV/
 # Streamlit secrets
 .streamlit/secrets.toml
 
-# ChromaDB vector store (auto-rebuilt on first run)
+# ChromaDB vector store binary files (auto-rebuilt on first run)
 knowledge_store/chroma_db/
 
 # Large binary files
