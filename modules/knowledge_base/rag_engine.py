@@ -163,7 +163,7 @@ class GridKnowledgeRAG:
                     "content": doc_str,
                 })
             return retrieved
-
+ 
         # Fallback
         return self.documents[:top_k]
 

@@ -283,6 +283,462 @@ st.markdown("""
         color: #ffffff !important;
         border: 1px solid rgba(56, 189, 248, 0.4) !important;
     }
+
+    /* False Data Injection Attack (FDIA) Mitigation Playbook (PLAYBOOK) & Expander Styling */
+    details[data-testid="stExpander"],
+    .stExpander,
+    .st-emotion-cache-1h9usn1,
+    .e1wbovuq1,
+    .playbook-card,
+    .fdia-playbook-card {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 12px !important;
+        color: #000000 !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+        margin-bottom: 14px !important;
+        overflow: hidden !important;
+    }
+
+    /* Summary Header for all classes */
+    details[data-testid="stExpander"] > summary,
+    [data-testid="stExpanderSummary"],
+    .st-emotion-cache-16hesyz,
+    .e1wbovuq4 {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-radius: 12px !important;
+        padding: 14px 18px !important;
+    }
+
+    details[data-testid="stExpander"] > summary:hover,
+    [data-testid="stExpanderSummary"]:hover,
+    .st-emotion-cache-16hesyz:hover,
+    .e1wbovuq4:hover {
+        background: #f8fafc !important;
+        background-color: #f8fafc !important;
+        color: #000000 !important;
+    }
+
+    /* Text and Icon elements inside summary */
+    details[data-testid="stExpander"] > summary *,
+    [data-testid="stExpanderSummary"] *,
+    .st-emotion-cache-16hesyz *,
+    .e1wbovuq4 * {
+        color: #000000 !important;
+        font-weight: 700 !important;
+    }
+
+    details[data-testid="stExpander"] summary svg,
+    details[data-testid="stExpander"] summary span,
+    [data-testid="stExpanderSummary"] svg,
+    [data-testid="stExpanderSummary"] span {
+        fill: #000000 !important;
+        color: #000000 !important;
+    }
+
+    /* Expander Content / Details Body for all classes */
+    details[data-testid="stExpander"] > [data-testid="stExpanderDetails"],
+    [data-testid="stExpanderDetails"],
+    .st-emotion-cache-1219f8n,
+    .e1wbovuq0,
+    .playbook-card-body {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-top: 1px solid #e2e8f0 !important;
+        padding: 16px 20px !important;
+    }
+
+    /* All child classes inside expander details */
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] *,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] p,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] span,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] div,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] strong,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] em,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] .stMarkdown,
+    details[data-testid="stExpander"] [data-testid="stExpanderDetails"] .stMarkdown *,
+    .st-emotion-cache-1219f8n *,
+    .e1wbovuq0 * {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Code snippet styling inside expander if any */
+    details[data-testid="stExpander"] code,
+    [data-testid="stExpanderDetails"] code {
+        background: #f1f5f9 !important;
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
+    /* ------------------------------------------------------------- */
+    /* Cyber-AI Chat Messages Styling: White Background & Black Text */
+    /* ------------------------------------------------------------- */
+    [data-testid="stChatMessage"] {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 14px !important;
+        padding: 16px 20px !important;
+        margin-bottom: 16px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+        color: #000000 !important;
+    }
+
+    [data-testid="stChatMessage"] [data-testid="stChatMessageContent"],
+    [data-testid="stChatMessage"] .stMarkdown,
+    [data-testid="stChatMessage"] p,
+    [data-testid="stChatMessage"] span,
+    [data-testid="stChatMessage"] div,
+    [data-testid="stChatMessage"] li,
+    [data-testid="stChatMessage"] ol,
+    [data-testid="stChatMessage"] ul,
+    [data-testid="stChatMessage"] h1,
+    [data-testid="stChatMessage"] h2,
+    [data-testid="stChatMessage"] h3,
+    [data-testid="stChatMessage"] h4,
+    [data-testid="stChatMessage"] h5 {
+        color: #000000 !important;
+        background-color: transparent !important;
+    }
+
+    [data-testid="stChatMessage"] strong,
+    [data-testid="stChatMessage"] b {
+        color: #000000 !important;
+        font-weight: 800 !important;
+    }
+
+    [data-testid="stChatMessage"] code {
+        background: #f1f5f9 !important;
+        background-color: #f1f5f9 !important;
+        color: #0284c7 !important;
+        border: 1px solid #cbd5e1 !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-weight: 600 !important;
+    }
+
+    /* Quick Operator Shortcut Buttons & Button Container Classes */
+    div[data-testid="column"] button[kind="secondary"],
+    div[data-testid="column"] button,
+    button:has(.el831t622),
+    .st-emotion-cache-1lads1q,
+    .el831t622 {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1.5px solid #38bdf8 !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        font-size: 12.5px !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+        transition: all 0.2s ease !important;
+    }
+
+    div[data-testid="column"] button:hover,
+    button:has(.el831t622):hover {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #38bdf8 !important;
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.45) !important;
+    }
+
+    div[data-testid="column"] button *,
+    div[data-testid="column"] button div,
+    div[data-testid="column"] button p,
+    div[data-testid="column"] button span,
+    .st-emotion-cache-1lads1q *,
+    .el831t622 *,
+    .st-emotion-cache-1kl7f1u,
+    .el831t623,
+    .st-emotion-cache-15okssx,
+    .e1h5cy170 {
+        color: #ffffff !important;
+        background-color: transparent !important;
+        font-weight: 700 !important;
+    }
+
+    div[data-testid="column"] button:hover *,
+    div[data-testid="column"] button:hover div,
+    div[data-testid="column"] button:hover p,
+    div[data-testid="column"] button:hover span {
+        color: #38bdf8 !important;
+    }
+
+    /* Chat Input Area */
+    [data-testid="stChatInput"] {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border-radius: 12px !important;
+        border: 1.5px solid #38bdf8 !important;
+        box-shadow: 0 4px 16px rgba(56, 189, 248, 0.15) !important;
+    }
+
+    [data-testid="stChatInput"] textarea {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-size: 13.5px !important;
+        font-weight: 500 !important;
+    }
+
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #64748b !important;
+    }
+
+    [data-testid="stChatInput"] button {
+        color: #38bdf8 !important;
+    }
+
+    /* Info Alert Boxes */
+    [data-testid="stAlert"] {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 12px !important;
+        color: #000000 !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    [data-testid="stAlert"] * {
+        color: #000000 !important;
+    }
+
+    /* ============================================================= */
+    /* Streamlit Toast Notification: Solid Black Background Theme    */
+    /* ============================================================= */
+    [data-testid="stToast"],
+    .stToast,
+    .st-emotion-cache-12oz5g7,
+    div[data-testid="stToastContainer"] [data-testid="stToast"],
+    div[data-testid="stToastContainer"] > div,
+    div[data-testid="stToastContainer"] li {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1.5px solid #38bdf8 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.95), 0 0 16px rgba(56, 189, 248, 0.4) !important;
+        padding: 14px 20px !important;
+    }
+
+    [data-testid="stToast"] *,
+    [data-testid="stToast"] p,
+    [data-testid="stToast"] span,
+    [data-testid="stToast"] div,
+    [data-testid="stToast"] [data-testid="stMarkdownContainer"],
+    [data-testid="stToast"] [data-testid="stMarkdownContainer"] p,
+    div[data-testid="stToastContainer"] p,
+    div[data-testid="stToastContainer"] span,
+    div[data-testid="stToastContainer"] div {
+        color: #ffffff !important;
+        background-color: transparent !important;
+        font-weight: 700 !important;
+        font-size: 13.5px !important;
+    }
+
+    /* Toast Icon Container */
+    [data-testid="stToast"] .st-emotion-cache-1wivapv,
+    [data-testid="stToast"] div:first-child,
+    div[data-testid="stToastContainer"] span:first-child {
+        background: transparent !important;
+        color: #f59e0b !important;
+        font-size: 20px !important;
+    }
+
+    /* ============================================================= */
+    /* Sidebar & System Controls: Black Background Theme             */
+    /* ============================================================= */
+    section[data-testid="stSidebar"],
+    .stSidebar,
+    .st-emotion-cache-110037a,
+    .e1nz955n2,
+    div[data-testid="stSidebarContent"],
+    div[data-testid="stSidebarUserContent"],
+    .st-emotion-cache-155jwzh,
+    .eelgd2m2 {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        border-right: 1px solid rgba(56, 189, 248, 0.25) !important;
+        color: #ffffff !important;
+    }
+
+    /* All sidebar headings, labels, texts */
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] h4,
+    section[data-testid="stSidebar"] h5,
+    section[data-testid="stSidebar"] h6,
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] span,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] div {
+        color: #ffffff !important;
+    }
+
+    section[data-testid="stSidebar"] label p,
+    section[data-testid="stSidebar"] label span {
+        color: #cbd5e1 !important;
+        font-weight: 600 !important;
+        font-size: 12.5px !important;
+    }
+
+    /* Feeder Benchmark Model, LLM Provider, Quick Attack Scenarios (Selectboxes) */
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"],
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] div,
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"] input,
+    section[data-testid="stSidebar"] div[data-baseweb="select"],
+    section[data-testid="stSidebar"] div[data-baseweb="select"] div,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] input,
+    .st-emotion-cache-zfrvrb,
+    .e1fp86qc1 {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        border: 1.5px solid rgba(56, 189, 248, 0.4) !important;
+        border-radius: 8px !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"] * {
+        color: #ffffff !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"] svg {
+        fill: #38bdf8 !important;
+        color: #38bdf8 !important;
+    }
+
+    /* Popover Dropdown Menu for Selectboxes */
+    div[data-baseweb="popover"],
+    ul[data-baseweb="menu"],
+    li[data-baseweb="menu-item"] {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    }
+
+    li[data-baseweb="menu-item"]:hover {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #38bdf8 !important;
+    }
+
+    /* LLM Model Name & Target Bus (Text & Number Inputs) */
+    section[data-testid="stSidebar"] div[data-testid="stTextInput"] div[data-baseweb="input"],
+    section[data-testid="stSidebar"] div[data-testid="stNumberInput"] div[data-baseweb="input"],
+    section[data-testid="stSidebar"] div[data-baseweb="input"],
+    section[data-testid="stSidebar"] div[data-baseweb="input"] > div,
+    section[data-testid="stSidebar"] div[data-testid="stTextInput"] input,
+    section[data-testid="stSidebar"] div[data-testid="stNumberInput"] input,
+    .st-emotion-cache-10bn01j,
+    .e1rv0tzo3 {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1.5px solid rgba(56, 189, 248, 0.35) !important;
+        border-radius: 8px !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-baseweb="input"] button {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #38bdf8 !important;
+        border: none !important;
+    }
+
+    /* Autonomous Self-Healing Toggle */
+    section[data-testid="stSidebar"] div[data-testid="stToggle"],
+    section[data-testid="stSidebar"] div[data-testid="stCheckbox"],
+    section[data-testid="stSidebar"] label.st-emotion-cache-7tv5ne,
+    section[data-testid="stSidebar"] .e1e6q2zh5 {
+        background: transparent !important;
+        color: #ffffff !important;
+    }
+
+    /* Intensity Slider */
+    section[data-testid="stSidebar"] div[data-testid="stSlider"],
+    section[data-testid="stSidebar"] div[data-baseweb="slider"] {
+        background: transparent !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-testid="stSliderTickBar"] *,
+    section[data-testid="stSidebar"] div[data-testid="stSlider"] span {
+        color: #cbd5e1 !important;
+        background: transparent !important;
+    }
+
+    /* Sidebar Buttons (Reset Grid State, Clear Attacks, Fire Attack, Reset Grid) */
+    section[data-testid="stSidebar"] button {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1.5px solid rgba(56, 189, 248, 0.4) !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    section[data-testid="stSidebar"] button:hover {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        border-color: #38bdf8 !important;
+        color: #38bdf8 !important;
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.35) !important;
+    }
+
+    section[data-testid="stSidebar"] button * {
+        color: #ffffff !important;
+    }
+
+    section[data-testid="stSidebar"] button:hover * {
+        color: #38bdf8 !important;
+    }
+
+    /* Fire Attack Primary Button */
+    section[data-testid="stSidebar"] button[kind="primary"] {
+        background: #000000 !important;
+        background-color: #000000 !important;
+        border: 1.5px solid #ef4444 !important;
+        color: #f87171 !important;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.25) !important;
+    }
+
+    section[data-testid="stSidebar"] button[kind="primary"] * {
+        color: #f87171 !important;
+    }
+
+    section[data-testid="stSidebar"] button[kind="primary"]:hover {
+        background: #180000 !important;
+        border-color: #f87171 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.5) !important;
+    }
+
+    /* Active Threat Feeds Cards in Sidebar */
+    section[data-testid="stSidebar"] .sidebar-threat-card {
+        background: #000000 !important;
+        background-color: #000000 !important;
+    }
+
+    /* Horizontal Dividers in Sidebar */
+    section[data-testid="stSidebar"] hr {
+        border-color: rgba(56, 189, 248, 0.2) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -504,18 +960,18 @@ with st.sidebar:
     if attack_inj.active_attacks:
         for atk_id, atk in attack_inj.active_attacks.items():
             st.markdown(f"""
-            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px;">
+            <div class="sidebar-threat-card" style="background: #000000; border: 1.5px solid rgba(239, 68, 68, 0.6); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 700; color: #f87171; font-size: 12px;">{atk.attack_type}</span>
                     <span style="font-size: 10px; color: #fca5a5;">Bus-{atk.target_bus:02d}</span>
                 </div>
-                <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">{atk.description}</div>
+                <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;">{atk.description}</div>
             </div>
             """, unsafe_allow_html=True)
     else:
         st.markdown("""
-        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 8px 12px; text-align: center;">
-            <span style="color: #34d399; font-size: 12px; font-weight: 600;">● No Active Intrusions</span>
+        <div class="sidebar-threat-card" style="background: #000000; border: 1.5px solid rgba(16, 185, 129, 0.5); border-radius: 8px; padding: 10px 14px; text-align: center; box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);">
+            <span style="color: #34d399; font-size: 12px; font-weight: 700;">● No Active Intrusions</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1027,7 +1483,12 @@ with tab5:
             results = rag_engine.query_knowledge(rag_query, top_k=3)
             for doc in results:
                 with st.expander(f"📄 {doc['title']} ({doc.get('category', 'STANDARD')})", expanded=True):
-                    st.write(doc["content"])
+                    st.markdown(
+                        f"""<div class="fdia-playbook-content" style="color: #000000 !important; background-color: #ffffff !important; font-size: 13.5px; line-height: 1.6; font-weight: 500;">
+{doc['content']}
+</div>""",
+                        unsafe_allow_html=True
+                    )
                     
     with col_kb_r:
         st.markdown("##### 📈 Continuous Learning Resilience Metrics")
@@ -1119,7 +1580,14 @@ with tab7:
     st.divider()
 
     # Quick action prompt shortcuts
-    st.markdown("##### ⚡ Quick Operator Shortcuts")
+    col_hdr1, col_hdr2 = st.columns([4, 1])
+    with col_hdr1:
+        st.markdown("##### ⚡ Quick Operator Shortcuts")
+    with col_hdr2:
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.chat_messages = []
+            st.rerun()
+
     col_p1, col_p2, col_p3 = st.columns(3)
     preset_query = None
     with col_p1:
