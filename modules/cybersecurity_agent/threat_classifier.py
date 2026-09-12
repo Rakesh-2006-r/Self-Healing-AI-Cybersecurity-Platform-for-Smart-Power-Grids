@@ -107,7 +107,32 @@ class CybersecurityAgent:
                     suggested_cyber_response="Quarantine corrupted SCADA/PMU sensor stream; trigger Weighted Least Squares bad data state re-estimation."
                 ))
 
-            # 3. Check for Physical Deep Voltage Sag / Equipment Short Circuit
+            # 3. Replay attacks can look electrically normal because stale values are
+            # intentionally plausible. The simulator marks the telemetry channel as
+            # compromised; classify it before treating it as an equipment fault.
+            elif b_info.get("status") == "COMPROMISED":
+                mitre = MITRE_ICS_TECHNIQUES["REPLAY_ATTACK"]
+                alerts.append(CyberThreatAlert(
+                    alert_id=f"CYBER-REPLAY-BUS-{b_id:02d}",
+                    threat_category="CYBER_ATTACK",
+                    attack_type="REPLAY_ATTACK",
+                    target_bus_id=b_id,
+                    target_branch_id=None,
+                    threat_severity_index=82.0,
+                    severity_level="HIGH",
+                    mitre_technique_id=mitre["technique_id"],
+                    mitre_technique_name=mitre["name"],
+                    mitre_description=mitre["description"],
+                    detected_at=timestamp,
+                    confidence_score=0.88,
+                    evidence=[
+                        "Telemetry channel marked compromised while measurements remain implausibly steady",
+                        "Live state must be cross-validated against trusted PMU data",
+                    ],
+                    suggested_cyber_response="Quarantine the replayed telemetry stream, re-authenticate the RTU, and re-estimate state from trusted measurements."
+                ))
+
+            # 4. Check for Physical Deep Voltage Sag / Equipment Short Circuit
             elif v_val < 0.75:
                 mitre = MITRE_ICS_TECHNIQUES["PHYSICAL_FAULT"]
                 alerts.append(CyberThreatAlert(
@@ -130,7 +155,7 @@ class CybersecurityAgent:
                     suggested_cyber_response="Isolate faulted bus section; reconfigure downstream tie-switches."
                 ))
 
-        # 4. Check for Breaker Hijacking / Unauthorized Open Switch
+        # 5. Check for Breaker Hijacking / Unauthorized Open Switch
         if raw_branches:
             for br_id, br in raw_branches.items():
                 if br.status == 0 and not br.is_tie_switch:

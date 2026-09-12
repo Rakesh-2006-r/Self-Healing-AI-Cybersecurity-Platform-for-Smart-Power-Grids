@@ -63,7 +63,12 @@ class SelfHealingController:
             if action.action_type == "ISOLATE_CYBER_STREAM":
                 target_bus = action.target_id
                 # Stop active cyber attacks on this bus
-                to_remove = [k for k, atk in self.attack_injector.active_attacks.items() if atk.target_bus == target_bus and atk.attack_type in ["FDIA", "DDOS", "REPLAY_ATTACK"]]
+                to_remove = [
+                    attack_id
+                    for attack_id, attack in self.attack_injector.active_attacks.items()
+                    if attack.target_bus == target_bus
+                    and attack.attack_type in ["FDIA", "DDOS", "REPLAY_ATTACK", "BREAKER_HIJACK"]
+                ]
                 for k in to_remove:
                     self.attack_injector.clear_attack(k)
 
@@ -97,7 +102,23 @@ class SelfHealingController:
                 action.status = "EXECUTED"
                 executed_count += 1
 
-            # 4. Bus Restoration
+            # 4. Restore an authorized breaker after a hijack has been contained.
+            elif action.action_type == "RESTORE_BREAKER":
+                branch_id = action.target_id
+                if branch_id in self.grid_simulator.branches:
+                    self.grid_simulator.set_breaker_status(branch_id, 1)
+                    branch = self.grid_simulator.branches[branch_id]
+                    logs.append(
+                        f"-> Authorized breaker restore: Branch-{branch_id} "
+                        f"between Bus-{branch.from_bus} and Bus-{branch.to_bus} CLOSED."
+                    )
+                    action.status = "EXECUTED"
+                    executed_count += 1
+                else:
+                    action.status = "FAILED"
+                    logs.append(f"-> Failed: Branch-{branch_id} does not exist.")
+
+            # 5. Bus Restoration
             elif action.action_type == "RESTORE_BUS":
                 target_bus = action.target_id
                 if target_bus in self.grid_simulator.buses:

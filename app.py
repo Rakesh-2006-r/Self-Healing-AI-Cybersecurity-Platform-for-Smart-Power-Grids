@@ -760,13 +760,27 @@ if "initialized" not in st.session_state:
     st.session_state.self_healing_ctrl = SelfHealingController(grid_simulator=st.session_state.grid_sim, attack_injector=st.session_state.attack_inj)
     st.session_state.learner = ContinuousLearner(rag_engine=st.session_state.rag_engine)
     
-    # State tracking
-    st.session_state.autonomous_mode = True
+    # State tracking: default to Supervised Mode (Human-in-the-Loop) so attacks
+    # persist on the grid until explicitly mitigated or manually reset.
+    st.session_state.autonomous_mode = False
     st.session_state.last_decision = None
     st.session_state.last_recovery = None
     st.session_state.telemetry_history = []
     st.session_state.chat_messages = []
+    # A Streamlit rerun must not re-plan or re-execute the same incident.
+    st.session_state.last_pipeline_attack_ids = ()
+    st.session_state.completed_incident_ids = set()
     st.session_state.initialized = True
+
+# Preserve compatibility with Streamlit sessions that were open before the
+# incident lifecycle fields above were introduced.
+if "last_pipeline_attack_ids" not in st.session_state:
+    st.session_state.last_pipeline_attack_ids = ()
+if "completed_incident_ids" not in st.session_state:
+    st.session_state.completed_incident_ids = set()
+if "supervised_default_configured" not in st.session_state:
+    st.session_state.autonomous_mode = False
+    st.session_state.supervised_default_configured = True
 
 # Shorthand handles
 grid_sim = st.session_state.grid_sim
@@ -796,21 +810,39 @@ cyber_alerts = cyber_agent.analyze_threats(anomaly_report, processed, gnn_result
 topology_analysis = top_analyzer.analyze_topology(nx_graph)
 candidate_restorations = top_analyzer.find_restoration_paths(nx_graph, topology_analysis["isolated_buses"], grid_sim.branches)
 
-# LangGraph Multi-Agent Decision
-decision_state = decision_engine.process_incident(
-    anomaly_report=anomaly_report,
-    cyber_alerts=cyber_alerts,
-    processed_telemetry=processed,
-    topology_analysis=topology_analysis,
-    candidate_restorations=candidate_restorations
-)
-st.session_state.last_decision = decision_state
+# Run the agent graph once per active attack set. Streamlit reruns for every
+# widget interaction, so running it unconditionally caused duplicated plans,
+# repeated recovery actions, and duplicate learning records.
+active_attack_ids = tuple(sorted(attack_inj.active_attacks))
+last_pipeline_attack_ids = st.session_state.last_pipeline_attack_ids
+should_run_agents = bool(active_attack_ids) and active_attack_ids != last_pipeline_attack_ids
 
-# Autonomous Self-Healing Execution
-if st.session_state.autonomous_mode and decision_state.status == "PLAN_READY" and decision_state.is_safe_to_execute:
+if should_run_agents or st.session_state.last_decision is None:
+    decision_state = decision_engine.process_incident(
+        anomaly_report=anomaly_report,
+        cyber_alerts=cyber_alerts,
+        processed_telemetry=processed,
+        topology_analysis=topology_analysis,
+        candidate_restorations=candidate_restorations
+    )
+    st.session_state.last_decision = decision_state
+    if active_attack_ids:
+        st.session_state.last_pipeline_attack_ids = active_attack_ids
+else:
+    decision_state = st.session_state.last_decision
+
+# Autonomous Self-Healing Execution: execute a safe playbook exactly once.
+if (
+    st.session_state.autonomous_mode
+    and decision_state.status == "PLAN_READY"
+    and decision_state.is_safe_to_execute
+    and decision_state.incident_id not in st.session_state.completed_incident_ids
+):
     rec_res = self_healing_ctrl.execute_playbook(decision_state, processed)
     st.session_state.last_recovery = rec_res
     learner.record_incident_resolution(decision_state, rec_res, anomaly_report, cyber_alerts)
+    st.session_state.completed_incident_ids.add(decision_state.incident_id)
+    decision_state.status = "RECOVERED" if rec_res.success else "RECOVERY_FAILED"
 
 # Telemetry History
 st.session_state.telemetry_history.append({
@@ -838,7 +870,11 @@ with st.sidebar:
     
     st.markdown("##### ⚙️ System Controls")
     topo_choice = st.selectbox("Feeder Benchmark Model", ["IEEE 14-Bus Test Feeder", "IEEE 33-Bus Distribution Network"])
-    st.session_state.autonomous_mode = st.toggle("🤖 Autonomous Self-Healing", value=st.session_state.autonomous_mode, help="Zero-touch autonomous cyber-physical mitigation.")
+    st.session_state.autonomous_mode = st.toggle(
+        "🤖 Autonomous Self-Healing",
+        value=st.session_state.autonomous_mode,
+        help="When OFF (Supervised Mode - Default), injected attacks remain active on the grid for full operator inspection until you click 'Execute Playbook Now' in Tab 3 or 'Reset Grid'. When ON, AI agents automatically mitigate and restore the grid upon detection."
+    )
     
     col_s1, col_s2 = st.columns(2)
     with col_s1:
@@ -849,15 +885,25 @@ with st.sidebar:
             st.session_state.gnn_detector = GridGNNAnomalyDetector()
             st.session_state.anomaly_detector = AnomalyDetector()
             st.session_state.cyber_agent = CybersecurityAgent()
+            # The controller owns references to both objects. Rebuild it when
+            # the grid is reset so actions target the visible simulation.
+            st.session_state.self_healing_ctrl = SelfHealingController(
+                grid_simulator=st.session_state.grid_sim,
+                attack_injector=st.session_state.attack_inj,
+            )
             st.session_state.last_decision = None
             st.session_state.last_recovery = None
             st.session_state.telemetry_history = []
+            st.session_state.last_pipeline_attack_ids = ()
+            st.session_state.completed_incident_ids = set()
             st.rerun()
     with col_s2:
         if st.button("🧹 Clear Attacks", use_container_width=True):
             st.session_state.attack_inj.active_attacks.clear()
             st.session_state.last_decision = None
             st.session_state.last_recovery = None
+            st.session_state.last_pipeline_attack_ids = ()
+            st.session_state.completed_incident_ids = set()
             st.rerun()
 
     st.divider()
@@ -941,6 +987,8 @@ with st.sidebar:
         if st.button("🚀 Fire Attack", use_container_width=True, type="primary"):
             target_br = custom_bus if atk_type == "BREAKER_HIJACK" else None
             evt = attack_inj.inject_attack(attack_type=atk_type, target_bus=custom_bus, target_branch=target_br, intensity=custom_int)
+            # Clear old recovery banner so the new attack is actively visible
+            st.session_state.last_recovery = None
             st.toast(f"🚨 Injected {atk_type} on Bus-{custom_bus:02d}!", icon="⚡")
             st.rerun()
             
@@ -952,6 +1000,10 @@ with st.sidebar:
             for br in grid_sim.branches.values():
                 br.status = 0 if br.is_tie_switch else 1
             grid_sim.solve_power_flow()
+            st.session_state.last_decision = None
+            st.session_state.last_recovery = None
+            st.session_state.last_pipeline_attack_ids = ()
+            st.session_state.completed_incident_ids = set()
             st.toast("Grid state reset to 100% nominal.", icon="✅")
             st.rerun()
 
@@ -1316,6 +1368,11 @@ with tab3:
             )
             st.markdown(header_html, unsafe_allow_html=True)
             
+            st.caption("Workflow: Triage → Risk Assessment → Recovery Planning → Safety Validation")
+
+            if dec.safety_violations:
+                st.error("Safety validation blocked execution: " + " ".join(dec.safety_violations))
+
             if not dec.agent_logs:
                 st.info("🟢 Grid in Equilibrium — Zero anomalies detected. All 4 AI Agents (Triage, Risk Assessor, Planner, Safety Validator) in active surveillance standby. Inject an attack in the sidebar to observe multi-agent orchestration.")
             else:
@@ -1327,11 +1384,16 @@ with tab3:
                 }
                 
                 for msg in dec.agent_logs:
-                    role_class = f"agent-{msg.role.lower().replace('_', '')}"
+                    role_class = {
+                        "TRIAGE": "agent-triage",
+                        "RISK_ASSESSOR": "agent-risk",
+                        "PLANNER": "agent-planner",
+                        "SAFETY_VALIDATOR": "agent-validator",
+                    }.get(msg.role, "")
                     icon = agent_role_icons.get(msg.role, "🤖")
                     llm_section = ""
                     if getattr(msg, "llm_reasoning", None):
-                        llm_section = f'<div style="background: rgba(2, 6, 23, 0.7); border: 1px dashed rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #7dd3fc; font-family: monospace;"><span style="color: #38bdf8; font-weight: 700;">[LLM Chain-of-Thought]:</span> {msg.llm_reasoning}</div>'
+                        llm_section = f'<div style="background: rgba(2, 6, 23, 0.7); border: 1px dashed rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #7dd3fc; font-family: monospace;"><span style="color: #38bdf8; font-weight: 700;">[LLM Rationale]:</span> {msg.llm_reasoning}</div>'
 
                     card_html = (
                         f'<div class="agent-card {role_class}">'
@@ -1349,11 +1411,13 @@ with tab3:
             st.markdown("##### 🛡️ Autonomous Self-Healing Playbook")
             if dec.recovery_playbook:
                 for act in dec.recovery_playbook:
+                    action_label = "READY" if act.status == "PENDING" else act.status
+                    action_color = "#fbbf24" if act.status == "PENDING" else "#34d399"
                     step_html = (
                         f'<div class="step-card">'
                         f'<div style="display: flex; justify-content: space-between; align-items: center;">'
                         f'<span style="font-weight: 700; color: #38bdf8; font-size: 13px;">STEP {act.step_number}: {act.action_type}</span>'
-                        f'<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">APPROVED</span>'
+                        f'<span style="background: rgba(16, 185, 129, 0.2); color: {action_color}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">{action_label}</span>'
                         f'</div>'
                         f'<div style="font-size: 12px; color: #f1f5f9; margin-top: 6px;">Target: <b>{act.target_entity}</b></div>'
                         f'<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">{act.justification}</div>'
@@ -1366,6 +1430,8 @@ with tab3:
                         rec_res = self_healing_ctrl.execute_playbook(dec, processed)
                         st.session_state.last_recovery = rec_res
                         learner.record_incident_resolution(dec, rec_res, anomaly_report, cyber_alerts)
+                        st.session_state.completed_incident_ids.add(dec.incident_id)
+                        dec.status = "RECOVERED" if rec_res.success else "RECOVERY_FAILED"
                         st.success("Playbook executed successfully!")
                         st.rerun()
             else:
@@ -1400,7 +1466,7 @@ with tab4:
             st.metric("💡 Capacity Secured", f"{rec.power_restored_mw:.1f} MW", delta=f"{rec.power_restored_mw / max(attacked_telemetry.get('total_load_mw', 259.0), 1.0) * 100:.1f}% load")
         with col_rec5:
             avoided_usd = rec.power_restored_mw * 12000.0 if rec.power_restored_mw > 0 else 45000.0
-            st.metric("💰 Avoided Outage Loss", f"${avoided_usd:,.0f}", delta="NERC CIP Value")
+            st.metric("💰 Avoided Outage Loss", f"₹{avoided_usd:,.0f}", delta="Grid Resilience Value")
 
         st.divider()
         
@@ -1499,7 +1565,7 @@ with tab5:
             st.metric("Total Incidents Resolved", metrics.total_incidents_resolved)
             st.metric("Mean Time to Recover (MTTR)", f"{metrics.mean_time_to_recover_ms:.2f} ms")
         with col_m2_sub:
-            st.metric("Total Avoided Losses", f"${metrics.total_avoided_loss_usd:,.2f}")
+            st.metric("Total Avoided Losses", f"₹{metrics.total_avoided_loss_usd:,.2f}")
             st.metric("Adaptive AI Sensitivity", f"{metrics.adaptive_gnn_sensitivity:.3f}x")
             
         if metrics.history:
@@ -1510,7 +1576,7 @@ with tab5:
                 "Target Bus": f"Bus-{ep.target_bus:02d}",
                 "MTTR (ms)": ep.recovery_time_ms,
                 "Restored %": f"{ep.power_restored_pct:.1f}%",
-                "Saved ($)": f"${ep.avoided_loss_usd:,.0f}"
+                "Saved (₹)": f"₹{ep.avoided_loss_usd:,.0f}"
             } for ep in metrics.history]
             st.dataframe(pd.DataFrame(history_rows), use_container_width=True, hide_index=True)
 
@@ -1554,7 +1620,7 @@ with tab6:
 ## 4. Performance & Economic Impact
 - **Mean Time to Recover (MTTR)**: `{rec.execution_time_ms:.2f} ms`
 - **Active Power Capacity Restored**: `{rec.power_restored_mw:.2f} MW`
-- **Estimated Avoided Downtime Economic Loss**: `${rec.power_restored_mw * 12000.0:,.2f}`
+- **Estimated Avoided Downtime Economic Loss**: `₹{rec.power_restored_mw * 12000.0:,.2f}`
 """
         st.markdown(report_md)
         st.download_button(

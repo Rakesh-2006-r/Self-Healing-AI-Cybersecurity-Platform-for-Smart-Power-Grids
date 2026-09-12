@@ -55,7 +55,7 @@ class ContinuousLearner:
         attack_type = cyber_alerts[0].attack_type if cyber_alerts else "FAULT"
         target_bus = cyber_alerts[0].target_bus_id if cyber_alerts else 1
 
-        # Calculate avoided economic loss based on industrial downtime costs ($12,000 / MWh standard estimate)
+        # Calculate avoided economic loss based on industrial downtime costs (₹12,000 / MWh standard estimate)
         avoided_mw = recovery_result.power_restored_mw
         avoided_usd = round(avoided_mw * 12000.0 * (recovery_result.final_restoration_pct / 100.0), 2)
         avoided_usd = max(avoided_usd, 45000.0 if attack_type != "NORMAL" else 0.0)

@@ -140,7 +140,7 @@ def run_simulation_pipeline():
     metrics = learner.get_metrics_summary()
 
     print(f"[OK] Logged Incident Episode: {episode.incident_id}")
-    print(f"[OK] Avoided Economic Damage: ${episode.avoided_loss_usd:,.2f}")
+    print(f"[OK] Avoided Economic Damage: ₹{episode.avoided_loss_usd:,.2f}")
     print(f"[OK] Total Incidents Resolved: {metrics.total_incidents_resolved} | Mean Time to Recover: {metrics.mean_time_to_recover_ms} ms")
     print(f"[OK] ChromaDB Knowledge Base updated with new resolution pattern.")
 

@@ -179,5 +179,65 @@ class TestSmartGridPlatform(unittest.TestCase):
         self.assertIn("rag_docs", chat_res)
         self.assertGreater(len(chat_res["response"]), 20)
 
+    def test_11_langgraph_workflow_runs_all_specialist_agents(self):
+        """Verify the decision engine uses all four LangGraph nodes in order."""
+        self.attack_inj.inject_attack(attack_type="FDIA", target_bus=4)
+        raw = self.attack_inj.apply_attacks_to_telemetry(self.grid_sim.get_telemetry_snapshot(), self.grid_sim)
+        processed = self.processor.process_telemetry_stream(raw)
+        x, edge_idx, _, graph = self.graph_builder.build_graph_tensors(processed, self.grid_sim.branches)
+        gnn_res = self.gnn_detector.evaluate_graph(x, edge_idx, list(self.grid_sim.buses.keys()))
+        anomalies = self.anomaly_detector.detect_anomalies(processed, gnn_res)
+        alerts = self.cyber_agent.analyze_threats(anomalies, processed, gnn_res, self.grid_sim.branches)
+        topology = self.top_analyzer.analyze_topology(graph)
+
+        decision = self.decision_engine.process_incident(anomalies, alerts, processed, topology, [])
+        workflow_nodes = self.decision_engine.workflow.get_graph().nodes
+
+        self.assertTrue({"triage", "risk_assessment", "recovery_planning", "safety_validation"}.issubset(workflow_nodes))
+        self.assertEqual(
+            [message.role for message in decision.agent_logs],
+            ["TRIAGE", "RISK_ASSESSOR", "PLANNER", "SAFETY_VALIDATOR"],
+        )
+
+    def test_12_replay_attack_is_classified_and_remediated(self):
+        """Replay telemetry must not fall through without an agent action."""
+        self.attack_inj.inject_attack(attack_type="REPLAY_ATTACK", target_bus=13)
+        raw = self.attack_inj.apply_attacks_to_telemetry(self.grid_sim.get_telemetry_snapshot(), self.grid_sim)
+        processed = self.processor.process_telemetry_stream(raw)
+        x, edge_idx, _, graph = self.graph_builder.build_graph_tensors(processed, self.grid_sim.branches)
+        gnn_res = self.gnn_detector.evaluate_graph(x, edge_idx, list(self.grid_sim.buses.keys()))
+        anomalies = self.anomaly_detector.detect_anomalies(processed, gnn_res)
+        alerts = self.cyber_agent.analyze_threats(anomalies, processed, gnn_res, self.grid_sim.branches)
+        topology = self.top_analyzer.analyze_topology(graph)
+
+        self.assertEqual(alerts[0].attack_type, "REPLAY_ATTACK")
+        decision = self.decision_engine.process_incident(anomalies, alerts, processed, topology, [])
+        self.assertTrue(decision.is_safe_to_execute)
+        self.assertIn("REAUTHENTICATE_SENSOR_STREAM", [action.parameter for action in decision.recovery_playbook])
+
+        recovery = self.self_healing_ctrl.execute_playbook(decision, processed)
+        self.assertTrue(recovery.success)
+        self.assertFalse(self.attack_inj.active_attacks)
+
+    def test_13_breaker_hijack_restores_authorized_breaker(self):
+        """A hijacked breaker is quarantined and closed by the recovery controller."""
+        self.attack_inj.inject_attack(attack_type="BREAKER_HIJACK", target_bus=1, target_branch=1)
+        raw = self.attack_inj.apply_attacks_to_telemetry(self.grid_sim.get_telemetry_snapshot(), self.grid_sim)
+        processed = self.processor.process_telemetry_stream(raw)
+        x, edge_idx, _, graph = self.graph_builder.build_graph_tensors(processed, self.grid_sim.branches)
+        gnn_res = self.gnn_detector.evaluate_graph(x, edge_idx, list(self.grid_sim.buses.keys()))
+        anomalies = self.anomaly_detector.detect_anomalies(processed, gnn_res)
+        alerts = self.cyber_agent.analyze_threats(anomalies, processed, gnn_res, self.grid_sim.branches)
+        topology = self.top_analyzer.analyze_topology(graph)
+        candidates = self.top_analyzer.find_restoration_paths(graph, topology["isolated_buses"], self.grid_sim.branches)
+
+        decision = self.decision_engine.process_incident(anomalies, alerts, processed, topology, candidates)
+        self.assertIn("RESTORE_BREAKER", [action.action_type for action in decision.recovery_playbook])
+
+        recovery = self.self_healing_ctrl.execute_playbook(decision, processed)
+        self.assertTrue(recovery.success)
+        self.assertEqual(self.grid_sim.branches[1].status, 1)
+        self.assertFalse(self.attack_inj.active_attacks)
+
 if __name__ == "__main__":
     unittest.main()
