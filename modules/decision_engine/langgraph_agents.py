@@ -470,6 +470,13 @@ class DecisionEngine:
         user_query: str,
         active_telemetry: Optional[Dict[str, Any]] = None,
         active_alerts: Optional[List[Any]] = None,
+        anomaly_report: Optional[Any] = None,
+        gnn_results: Optional[Dict[str, Any]] = None,
+        active_attacks: Optional[List[Any]] = None,
+        last_decision: Optional[Any] = None,
+        last_recovery: Optional[Any] = None,
+        grid_sim: Optional[Any] = None,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Answer an operator question with RAG context and current grid telemetry."""
         rag_docs = self.rag_engine.query_knowledge(user_query, top_k=3)
@@ -477,19 +484,103 @@ class DecisionEngine:
             f"[{document.get('title')}]: {document.get('content')}" for document in rag_docs
         )
 
-        telemetry_ctx = "Nominal operating conditions."
+        # 1. System-wide telemetry metrics
+        sys_freq = 50.0
+        freq_dev = 0.0
+        restoration_pct = 100.0
         if active_telemetry:
-            telemetry_ctx = (
-                f"System Status: {active_telemetry.get('system_status', 'NORMAL')} | "
-                f"Frequency: {active_telemetry.get('frequency_hz', 50.0):.2f} Hz | "
-                f"Active Buses: {len(active_telemetry.get('buses', {}))}"
-            )
+            sys_freq = active_telemetry.get("frequency_hz", 50.0)
+            freq_dev = active_telemetry.get("frequency_deviation_hz", 0.0)
+            restoration_pct = active_telemetry.get("restoration_ratio_pct", 100.0)
 
-        alerts_ctx = "No active cyber alerts."
-        if active_alerts:
-            alerts_ctx = f"{len(active_alerts)} Active Cyber Alerts: " + ", ".join(
-                f"{alert.attack_type} on Bus-{alert.target_bus_id}" for alert in active_alerts
+        health_score = getattr(anomaly_report, "system_health_score", 100.0) if anomaly_report else 100.0
+
+        # 2. Extract Bus-level Measurements
+        buses_dict: Dict[int, Any] = {}
+        if active_telemetry and "processed_buses" in active_telemetry:
+            buses_dict = active_telemetry["processed_buses"]
+        elif active_telemetry and "buses" in active_telemetry:
+            buses_dict = active_telemetry["buses"]
+        elif grid_sim and hasattr(grid_sim, "buses"):
+            buses_dict = {
+                b_id: {
+                    "bus_id": b_id,
+                    "bus_name": f"Bus-{b_id:02d}",
+                    "voltage_pu": b.voltage_pu,
+                    "voltage_angle_deg": getattr(b, "voltage_angle_deg", 0.0),
+                    "active_power_mw": b.active_power_mw,
+                    "reactive_power_mvar": getattr(b, "reactive_power_mvar", 0.0),
+                    "status": b.status,
+                    "rtu_packet_loss_rate": getattr(b, "rtu_packet_loss_rate", 0.0),
+                }
+                for b_id, b in grid_sim.buses.items()
+            }
+
+        bus_summary_lines = []
+        for b_id, b_data in sorted(buses_dict.items(), key=lambda x: int(x[0])):
+            b_id_int = int(b_id)
+            v = b_data.get("voltage_pu", 1.0)
+            p = b_data.get("active_power_mw", 0.0)
+            q = b_data.get("reactive_power_mvar", 0.0)
+            st_val = b_data.get("status", "ENERGIZED")
+            loss = b_data.get("rtu_packet_loss_rate", 0.0)
+            gnn_err = 0.0
+            if gnn_results and "node_anomaly_scores" in gnn_results:
+                gnn_err = gnn_results["node_anomaly_scores"].get(b_id_int, 0.0)
+            bus_summary_lines.append(
+                f"Bus-{b_id_int:02d}: V={v:.3f} pu, P={p:.2f} MW, Q={q:.2f} MVar, RTU_Loss={loss:.1f}%, Status={st_val}, GNN_Loss={gnn_err:.4f}"
             )
+        bus_summary_str = "\n".join(bus_summary_lines) if bus_summary_lines else "Nominal bus state across feeder network."
+
+        # 3. Active Cyber Attacks
+        attacks_lines = []
+        if active_attacks:
+            for atk in active_attacks:
+                if isinstance(atk, dict):
+                    attacks_lines.append(
+                        f"Attack ID={atk.get('id', 'N/A')}, Type={atk.get('attack_type', 'N/A')}, Target Bus={atk.get('target_bus', 'N/A')}, Description={atk.get('description', 'N/A')}"
+                    )
+                else:
+                    attacks_lines.append(
+                        f"Attack ID={getattr(atk, 'id', 'N/A')}, Type={getattr(atk, 'attack_type', 'N/A')}, Target Bus={getattr(atk, 'target_bus', 'N/A')}, Description={getattr(atk, 'description', 'N/A')}"
+                    )
+        attacks_ctx = "\n".join(attacks_lines) if attacks_lines else "No active cyber-physical attacks currently injected."
+
+        # 4. Cyber Threat Alerts
+        alerts_lines = []
+        if active_alerts:
+            for al in active_alerts:
+                evidence_str = ", ".join(al.evidence[:2]) if hasattr(al, "evidence") and al.evidence else "Telemetry anomaly"
+                alerts_lines.append(
+                    f"[{getattr(al, 'severity_level', 'HIGH')}] Alert {getattr(al, 'alert_id', 'N/A')}: {getattr(al, 'attack_type', 'THREAT')} on Bus-{getattr(al, 'target_bus_id', 'N/A')} "
+                    f"(MITRE {getattr(al, 'mitre_technique_id', 'T0800')} {getattr(al, 'mitre_technique_name', '')}, TSI={getattr(al, 'threat_severity_index', 0.0):.1f}). Evidence: {evidence_str}"
+                )
+        alerts_ctx = "\n".join(alerts_lines) if alerts_lines else "0 active cyber threat alerts."
+
+        # 5. Anomalies
+        anomalies_lines = []
+        if anomaly_report and hasattr(anomaly_report, "anomalies") and anomaly_report.anomalies:
+            for an in anomaly_report.anomalies:
+                anomalies_lines.append(
+                    f"[{an.severity}] {an.entity_type} {an.entity_id}: {an.anomaly_type} - {an.message} (Value={an.value:.3f}, Threshold={an.threshold:.3f})"
+                )
+        anomalies_ctx = "\n".join(anomalies_lines) if anomalies_lines else "0 anomalies detected across grid buses."
+
+        full_user_prompt = (
+            f"OPERATOR QUERY: {user_query}\n\n"
+            f"LIVE GRID CONTEXT:\n"
+            f"- System Frequency: {sys_freq:.3f} Hz (Deviation: {freq_dev:.4f} Hz)\n"
+            f"- Restoration Ratio: {restoration_pct:.1f}%\n"
+            f"- Grid Health Score: {health_score:.1f}/100\n"
+            f"- Total Active Feeder Buses: {len(buses_dict)}\n\n"
+            f"ACTIVE CYBER ATTACKS:\n{attacks_ctx}\n\n"
+            f"ACTIVE CYBER THREAT ALERTS:\n{alerts_ctx}\n\n"
+            f"ACTIVE PHYSICAL & ML ANOMALIES:\n{anomalies_ctx}\n\n"
+            f"LIVE BUS TELEMETRY & STATUS:\n{bus_summary_str}\n\n"
+            f"RETRIEVED DOMAIN STANDARDS AND PLAYBOOKS:\n{rag_context_text}\n\n"
+            "Instructions: Provide a clear, technically rigorous, and actionable response directly addressing the operator inquiry. "
+            "If the question inquires about a specific bus (e.g. Bus-02 or Bus 4), extract its real-time telemetry, analyze any active issues/attacks/anomalies, and provide step-by-step engineering mitigation and self-healing solutions conforming to IEEE 1547 and NERC CIP."
+        )
 
         response_text = self._ask_agent(
             (
@@ -497,12 +588,7 @@ class DecisionEngine:
                 "MITRE ATT&CK for ICS, IEEE 1547 / IEEE 1159 electrical standards, PyTorch GNN anomaly detection, "
                 "and autonomous self-healing power grid restoration."
             ),
-            (
-                f"OPERATOR QUERY: {user_query}\n\n"
-                f"LIVE GRID CONTEXT:\n- {telemetry_ctx}\n- {alerts_ctx}\n\n"
-                f"RETRIEVED DOMAIN STANDARDS AND PLAYBOOKS:\n{rag_context_text}\n\n"
-                "Provide a clear, technical, and actionable expert response for the grid operator."
-            ),
+            full_user_prompt,
         )
         return {
             "response": response_text,

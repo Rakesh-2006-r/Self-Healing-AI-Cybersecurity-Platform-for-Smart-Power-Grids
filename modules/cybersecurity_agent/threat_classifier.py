@@ -49,7 +49,32 @@ class CybersecurityAgent:
         gnn_scores = gnn_results.get("node_anomaly_scores", {})
         timestamp = processed_telemetry.get("timestamp", time.time())
 
-        # Scan each bus for intrusion patterns
+        # 1. First check for Breaker Hijacking / Unauthorized Open Switch
+        if raw_branches:
+            for br_id, br in raw_branches.items():
+                if br.status == 0 and not getattr(br, "is_tie_switch", False):
+                    mitre = MITRE_ICS_TECHNIQUES["BREAKER_HIJACK"]
+                    alerts.append(CyberThreatAlert(
+                        alert_id=f"CYBER-HIJACK-BR-{br_id}",
+                        threat_category="CYBER_ATTACK",
+                        attack_type="BREAKER_HIJACK",
+                        target_bus_id=br.from_bus,
+                        target_branch_id=br_id,
+                        threat_severity_index=92.0,
+                        severity_level="CRITICAL",
+                        mitre_technique_id=mitre["technique_id"],
+                        mitre_technique_name=mitre["name"],
+                        mitre_description=mitre["description"],
+                        detected_at=timestamp,
+                        confidence_score=0.95,
+                        evidence=[
+                            f"Breaker on Branch-{br_id} (Bus {br.from_bus} -> Bus {br.to_bus}) opened without operator dispatch ticket",
+                            "Sudden line power disruption",
+                        ],
+                        suggested_cyber_response="Revoke unauthorized SCADA command credentials; execute automated feeder tie-switch power restoration."
+                    ))
+
+        # 2. Scan each bus for intrusion patterns
         for b_id, b_info in buses.items():
             v_val = b_info.get("voltage_pu", 1.0)
             v_z = b_info.get("voltage_z_score", 0.0)
@@ -59,7 +84,7 @@ class CybersecurityAgent:
             has_pmu = b_id in pmus
             pmu_sync = pmus[b_id].get("sync_lock", True) if has_pmu else True
 
-            # 1. Check for DDoS Flooding Attack on SCADA RTU
+            # 2a. Check for DDoS Flooding Attack on SCADA RTU
             if loss_rate > CYBER_CONFIG["DDOS_PACKET_DROP_RATE_THRESHOLD"] or not pmu_sync:
                 mitre = MITRE_ICS_TECHNIQUES["DDOS"]
                 alerts.append(CyberThreatAlert(
@@ -82,35 +107,8 @@ class CybersecurityAgent:
                     suggested_cyber_response="Engage SCADA Firewall rate limiting, switch to secondary fiber communication channel."
                 ))
 
-            # 2. Check for False Data Injection Attack (FDIA)
-            # High GNN residual or high voltage Z-score while physical frequency remains near nominal
-            elif gnn_err > CYBER_CONFIG["GNN_RECONSTRUCTION_ERROR_THRESHOLD"] and v_val > 1.10:
-                mitre = MITRE_ICS_TECHNIQUES["FDIA"]
-                alerts.append(CyberThreatAlert(
-                    alert_id=f"CYBER-FDIA-BUS-{b_id:02d}",
-                    threat_category="CYBER_ATTACK",
-                    attack_type="FDIA",
-                    target_bus_id=b_id,
-                    target_branch_id=None,
-                    threat_severity_index=94.0,
-                    severity_level="CRITICAL",
-                    mitre_technique_id=mitre["technique_id"],
-                    mitre_technique_name=mitre["name"],
-                    mitre_description=mitre["description"],
-                    detected_at=timestamp,
-                    confidence_score=0.96,
-                    evidence=[
-                        f"GNN Graph reconstruction error: {gnn_err:.3f} (Threshold: {CYBER_CONFIG['GNN_RECONSTRUCTION_ERROR_THRESHOLD']})",
-                        f"Artificial voltage injection: {v_val:.3f} pu (Z-score: {v_z:.2f})",
-                        "Physical grid frequency invariant with reported voltage spike",
-                    ],
-                    suggested_cyber_response="Quarantine corrupted SCADA/PMU sensor stream; trigger Weighted Least Squares bad data state re-estimation."
-                ))
-
-            # 3. Replay attacks can look electrically normal because stale values are
-            # intentionally plausible. The simulator marks the telemetry channel as
-            # compromised; classify it before treating it as an equipment fault.
-            elif b_info.get("status") == "COMPROMISED":
+            # 2b. Check for Replay attacks (Telemetry steady/nominal while flagged or discordance with neighboring dynamics)
+            elif b_info.get("status") == "COMPROMISED" and (0.98 <= v_val <= 1.04):
                 mitre = MITRE_ICS_TECHNIQUES["REPLAY_ATTACK"]
                 alerts.append(CyberThreatAlert(
                     alert_id=f"CYBER-REPLAY-BUS-{b_id:02d}",
@@ -132,7 +130,7 @@ class CybersecurityAgent:
                     suggested_cyber_response="Quarantine the replayed telemetry stream, re-authenticate the RTU, and re-estimate state from trusted measurements."
                 ))
 
-            # 4. Check for Physical Deep Voltage Sag / Equipment Short Circuit
+            # 2c. Check for Physical Deep Voltage Sag / Equipment Short Circuit
             elif v_val < 0.75:
                 mitre = MITRE_ICS_TECHNIQUES["PHYSICAL_FAULT"]
                 alerts.append(CyberThreatAlert(
@@ -155,29 +153,28 @@ class CybersecurityAgent:
                     suggested_cyber_response="Isolate faulted bus section; reconfigure downstream tie-switches."
                 ))
 
-        # 5. Check for Breaker Hijacking / Unauthorized Open Switch
-        if raw_branches:
-            for br_id, br in raw_branches.items():
-                if br.status == 0 and not br.is_tie_switch:
-                    mitre = MITRE_ICS_TECHNIQUES["BREAKER_HIJACK"]
-                    alerts.append(CyberThreatAlert(
-                        alert_id=f"CYBER-HIJACK-BR-{br_id}",
-                        threat_category="CYBER_ATTACK",
-                        attack_type="BREAKER_HIJACK",
-                        target_bus_id=br.from_bus,
-                        target_branch_id=br_id,
-                        threat_severity_index=92.0,
-                        severity_level="CRITICAL",
-                        mitre_technique_id=mitre["technique_id"],
-                        mitre_technique_name=mitre["name"],
-                        mitre_description=mitre["description"],
-                        detected_at=timestamp,
-                        confidence_score=0.95,
-                        evidence=[
-                            f"Breaker on Branch-{br_id} (Bus {br.from_bus} -> Bus {br.to_bus}) opened without operator dispatch ticket",
-                            "Sudden line power disruption",
-                        ],
-                        suggested_cyber_response="Revoke unauthorized SCADA command credentials; execute automated feeder tie-switch power restoration."
-                    ))
+            # 2d. Check for False Data Injection Attack (FDIA)
+            elif b_info.get("status") == "COMPROMISED" or ((gnn_err > CYBER_CONFIG["GNN_RECONSTRUCTION_ERROR_THRESHOLD"] or v_z > CYBER_CONFIG["ANOMALY_Z_SCORE_THRESHOLD"]) and (v_val > 1.10 or (0.75 <= v_val < 0.90) or p_z > 2.0)):
+                mitre = MITRE_ICS_TECHNIQUES["FDIA"]
+                alerts.append(CyberThreatAlert(
+                    alert_id=f"CYBER-FDIA-BUS-{b_id:02d}",
+                    threat_category="CYBER_ATTACK",
+                    attack_type="FDIA",
+                    target_bus_id=b_id,
+                    target_branch_id=None,
+                    threat_severity_index=94.0,
+                    severity_level="CRITICAL",
+                    mitre_technique_id=mitre["technique_id"],
+                    mitre_technique_name=mitre["name"],
+                    mitre_description=mitre["description"],
+                    detected_at=timestamp,
+                    confidence_score=0.96,
+                    evidence=[
+                        f"GNN Graph reconstruction error: {gnn_err:.3f} (Threshold: {CYBER_CONFIG['GNN_RECONSTRUCTION_ERROR_THRESHOLD']})",
+                        f"Artificial voltage injection: {v_val:.3f} pu (Z-score: {v_z:.2f})",
+                        "Physical grid frequency invariant with reported voltage spike",
+                    ],
+                    suggested_cyber_response="Quarantine corrupted SCADA/PMU sensor stream; trigger Weighted Least Squares bad data state re-estimation."
+                ))
 
         return alerts

@@ -167,12 +167,20 @@ class AnomalyDetector:
                     message=f"Branch-{br_id} Thermal Overload: {loading:.1f}%",
                 ))
 
-        # Calculate overall system health
+        # Calculate overall system health dynamically
         if not anomalies:
             system_health = 100.0
         else:
             avg_bus_health = sum(bus_health.values()) / max(len(bus_health), 1)
-            system_health = avg_bus_health if not any(a.severity == "CRITICAL" for a in anomalies) else min(avg_bus_health, 45.0)
+            crit_count = sum(1 for a in anomalies if a.severity == "CRITICAL")
+            high_count = sum(1 for a in anomalies if a.severity == "HIGH")
+            med_count = sum(1 for a in anomalies if a.severity == "MEDIUM")
+            
+            # Dynamic multi-attack scaling: smoothly scale health with each additional anomaly and frequency disturbance
+            degradation = 1.0 - (0.10 * crit_count + 0.04 * high_count + 0.015 * med_count + freq_dev * 0.35)
+            degradation = max(0.02, degradation)
+            calculated_health = avg_bus_health * degradation
+            system_health = max(1.0, min(99.0, calculated_health))
 
         # Determine highest severity
         severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}

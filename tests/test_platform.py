@@ -179,6 +179,47 @@ class TestSmartGridPlatform(unittest.TestCase):
         self.assertIn("rag_docs", chat_res)
         self.assertGreater(len(chat_res["response"]), 20)
 
+        # 5. Bus-Specific Operator Queries (e.g. Bus-02 and B10 diagnostics & solutions)
+        bus2_res = self.decision_engine.query_grid_assistant("what is issue with Bus-02")
+        self.assertIn("Bus-02", bus2_res["response"])
+        self.assertTrue(
+            "Telemetry" in bus2_res["response"]
+            or "MITRE" in bus2_res["response"]
+            or "Playbook" in bus2_res["response"]
+            or "Operational" in bus2_res["response"]
+        )
+
+        b10_res = self.decision_engine.query_grid_assistant("what is issue with B10")
+        self.assertIn("Bus-10", b10_res["response"])
+        self.assertTrue(
+            "Residential" in b10_res["response"]
+            or "Telemetry" in b10_res["response"]
+            or "Operational" in b10_res["response"]
+        )
+
+        # 6. Attacked Bus Query with live telemetry and alerts
+        self.attack_inj.inject_attack(attack_type="FDIA", target_bus=2)
+        raw = self.attack_inj.apply_attacks_to_telemetry(self.grid_sim.get_telemetry_snapshot(), self.grid_sim)
+        processed = self.processor.process_telemetry_stream(raw)
+        x, edge_idx, _, graph = self.graph_builder.build_graph_tensors(processed, self.grid_sim.branches)
+        gnn_res = self.gnn_detector.evaluate_graph(x, edge_idx, list(self.grid_sim.buses.keys()))
+        anomalies = self.anomaly_detector.detect_anomalies(processed, gnn_res)
+        alerts = self.cyber_agent.analyze_threats(anomalies, processed, gnn_res, self.grid_sim.branches)
+
+        atk_bus2_res = self.decision_engine.query_grid_assistant(
+            user_query="what is issue on bus 2",
+            active_telemetry=processed,
+            active_alerts=alerts,
+            anomaly_report=anomalies,
+            gnn_results=gnn_res,
+            active_attacks=list(self.attack_inj.active_attacks.values()),
+        )
+        self.assertIn("Bus-02", atk_bus2_res["response"])
+        self.assertIn("FDIA", atk_bus2_res["response"])
+        self.assertIn("ISOLATE_CYBER_STREAM", atk_bus2_res["response"])
+        self.assertIn("REESTIMATE_STATE", atk_bus2_res["response"])
+        self.attack_inj.clear_attack(list(self.attack_inj.active_attacks.keys())[0])
+
     def test_11_langgraph_workflow_runs_all_specialist_agents(self):
         """Verify the decision engine uses all four LangGraph nodes in order."""
         self.attack_inj.inject_attack(attack_type="FDIA", target_bus=4)

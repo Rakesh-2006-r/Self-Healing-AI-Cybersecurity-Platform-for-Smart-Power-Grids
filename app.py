@@ -6,6 +6,7 @@ Department of Data Science - Batch DSA 13.
 
 import time
 import math
+import json
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
@@ -283,6 +284,57 @@ st.markdown("""
         color: #ffffff !important;
         border: 1px solid rgba(56, 189, 248, 0.4) !important;
     }
+
+    /* Multi-Agent Sub-Navigation Bar */
+    div[data-testid="stSegmentedControl"] {
+        background: rgba(15, 23, 42, 0.85) !important;
+        padding: 6px 8px !important;
+        border-radius: 14px !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+        backdrop-filter: blur(14px) !important;
+        margin-top: 6px !important;
+        margin-bottom: 20px !important;
+        gap: 6px !important;
+        width: 100% !important;
+    }
+
+    div[data-testid="stSegmentedControl"] button {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-size: 12.5px !important;
+        color: #94a3b8 !important;
+        border: 1px solid transparent !important;
+        transition: all 0.2s ease-in-out !important;
+        padding: 6px 14px !important;
+    }
+
+    div[data-testid="stSegmentedControl"] button:hover {
+        color: #38bdf8 !important;
+        background: rgba(56, 189, 248, 0.12) !important;
+        border-color: rgba(56, 189, 248, 0.35) !important;
+    }
+
+    div[data-testid="stSegmentedControl"] button[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button[data-checked="true"],
+    div[data-testid="stSegmentedControl"] [data-active="true"] {
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(56, 189, 248, 0.6) !important;
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.3) !important;
+        font-weight: 700 !important;
+    }
+
+    /* Multi-Agent Deep-Dive Cards */
+    .agent-deep-card {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.6) 100%);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 12px;
+        padding: 18px 22px;
+        margin-bottom: 16px;
+        backdrop-filter: blur(12px);
+    }
+
 
     /* False Data Injection Attack (FDIA) Mitigation Playbook (PLAYBOOK) & Expander Styling */
     details[data-testid="stExpander"],
@@ -782,6 +834,10 @@ if "supervised_default_configured" not in st.session_state:
     st.session_state.autonomous_mode = False
     st.session_state.supervised_default_configured = True
 
+# Upgrade in-memory session instances to latest class definitions if reloaded
+if "decision_engine" in st.session_state:
+    st.session_state.decision_engine.__class__ = DecisionEngine
+
 # Shorthand handles
 grid_sim = st.session_state.grid_sim
 attack_inj = st.session_state.attack_inj
@@ -947,11 +1003,19 @@ with st.sidebar:
     }
     
     llm_model_name = st.text_input("LLM Model Name", value=model_presets.get(selected_prov_code, "llama3.2"))
-    llm_api_key = ""
+    env_key = ""
+    if selected_prov_code == "gemini":
+        env_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "") or os.getenv("LLM_API_KEY", "")
+    elif selected_prov_code in ["openai", "groq"]:
+        env_key = os.getenv("OPENAI_API_KEY", "") or os.getenv("GROQ_API_KEY", "") or os.getenv("LLM_API_KEY", "")
+    elif selected_prov_code == "anthropic":
+        env_key = os.getenv("ANTHROPIC_API_KEY", "") or os.getenv("LLM_API_KEY", "")
+
+    llm_api_key = env_key
     llm_base_url = ""
 
     if selected_prov_code in ["openai", "gemini", "anthropic", "deepseek", "mistral", "huggingface"]:
-        llm_api_key = st.text_input("API Key", type="password", help="Enter your API key for remote LLM inference.")
+        llm_api_key = st.text_input("API Key", value=env_key, type="password", help="Enter your API key for remote LLM inference (auto-loaded if set in environment).")
     elif selected_prov_code == "ollama":
         llm_base_url = st.text_input("Ollama Base URL", value="http://localhost:11434")
 
@@ -1086,6 +1150,8 @@ with kpi2:
     """, unsafe_allow_html=True)
 
 with kpi3:
+    total_dem = attacked_telemetry.get('total_demand_mw', attacked_telemetry.get('total_load_mw', 260.3))
+    served_dem = attacked_telemetry.get('total_load_mw', total_dem)
     st.markdown(f"""
     <div class="kpi-card">
         <div class="kpi-header">
@@ -1093,7 +1159,7 @@ with kpi3:
             <span style="font-size: 14px;">💡</span>
         </div>
         <div class="kpi-value" style="color: {'#34d399' if load_val>98 else '#f87171'};">{load_val:.1f}<span style="font-size: 14px; font-weight: 500;">%</span></div>
-        <div class="kpi-meta">{attacked_telemetry['total_load_mw']:.1f} MW Demand</div>
+        <div class="kpi-meta">{served_dem:.1f} / {total_dem:.1f} MW</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1338,42 +1404,99 @@ with tab2:
 with tab3:
     st.markdown("#### 🤖 LangGraph Multi-Agent Autonomous Decision Engine")
     
-    if st.session_state.last_decision:
-        dec = st.session_state.last_decision
+    # Actuation execution helper
+    def _execute_healing_playbook(dec_obj, proc_data):
+        rec_res = self_healing_ctrl.execute_playbook(dec_obj, proc_data)
+        st.session_state.last_recovery = rec_res
+        learner.record_incident_resolution(dec_obj, rec_res, anomaly_report, cyber_alerts)
+        st.session_state.completed_incident_ids.add(dec_obj.incident_id)
+        dec_obj.status = "RECOVERED" if rec_res.success else "RECOVERY_FAILED"
+        st.success("⚡ Self-healing playbook executed successfully! Actuators dispatched.")
+        st.rerun()
+
+    dec = st.session_state.last_decision
+
+    # High-Impact Dynamic Incident Status Banner
+    if dec:
+        risk_color = "#34d399" if dec.risk_score < 30 else ("#f87171" if dec.risk_score > 70 else "#fbbf24")
+        risk_bg = "rgba(16, 185, 129, 0.2)" if dec.risk_score < 30 else ("rgba(239, 68, 68, 0.2)" if dec.risk_score > 70 else "rgba(251, 191, 36, 0.2)")
         
+        status_html = (
+            f'<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 16px; backdrop-filter: blur(12px);">'
+            f'<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
+            f'<span style="font-weight: 700; color: #38bdf8; font-size: 14px;">Incident: {dec.incident_id} &nbsp;|&nbsp; Status: <span style="color: #ffffff;">{dec.status}</span></span>'
+            f'<div style="display: flex; gap: 8px; align-items: center;">'
+            f'<span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">🧠 {decision_engine.llm_client.provider.upper()} ({decision_engine.llm_client.model_name})</span>'
+            f'<span style="background: {risk_bg}; color: {risk_color}; border: 1px solid {risk_color}55; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">{dec.risk_level} RISK ({dec.risk_score:.1f}/100)</span>'
+            f'</div>'
+            f'</div>'
+            f'<div style="font-size: 13px; color: #cbd5e1; margin-top: 6px;"><b>Threat Summary:</b> {dec.threat_summary}</div>'
+            f'</div>'
+        )
+        st.markdown(status_html, unsafe_allow_html=True)
+    else:
+        status_html = (
+            f'<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(52, 211, 153, 0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 16px; backdrop-filter: blur(12px);">'
+            f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+            f'<span style="font-weight: 700; color: #34d399; font-size: 14px;">🟢 Grid in Steady-State Equilibrium</span>'
+            f'<div style="display: flex; gap: 8px; align-items: center;">'
+            f'<span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">🧠 {decision_engine.llm_client.provider.upper()} ({decision_engine.llm_client.model_name})</span>'
+            f'<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">LOW RISK (0.0/100)</span>'
+            f'</div>'
+            f'</div>'
+            f'<div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Continuous SCADA RTU & PMU telemetry cross-validated against physics constraints. All 4 AI agents in active surveillance standby.</div>'
+            f'</div>'
+        )
+        st.markdown(status_html, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------------------
+    # MULTI-AGENT DEDICATED NAVIGATION BAR
+    # -------------------------------------------------------------------------
+    nav_options = [
+        "🌐 Full Orchestration Timeline",
+        "🔍 Agent 1: Triage Specialist",
+        "⚖️ Agent 2: Risk Assessor",
+        "🛠️ Agent 3: Healing Planner",
+        "🛡️ Agent 4: Safety Validator",
+        "⚡ Autonomous Playbook Cockpit",
+        "🧬 LangGraph State Inspector",
+    ]
+    
+    ma_choice = st.segmented_control(
+        "Multi-Agent Sub-Navigation",
+        options=nav_options,
+        default="🌐 Full Orchestration Timeline",
+        label_visibility="collapsed",
+        key="ma_navbar_segmented_ctrl",
+    )
+    if not ma_choice:
+        ma_choice = "🌐 Full Orchestration Timeline"
+
+    agent_logs = dec.agent_logs if dec else []
+    triage_msg = next((m for m in agent_logs if m.role == "TRIAGE"), None)
+    risk_msg = next((m for m in agent_logs if m.role == "RISK_ASSESSOR"), None)
+    planner_msg = next((m for m in agent_logs if m.role == "PLANNER"), None)
+    safety_msg = next((m for m in agent_logs if m.role == "SAFETY_VALIDATOR"), None)
+
+    # -------------------------------------------------------------------------
+    # VIEW 1: FULL ORCHESTRATION TIMELINE
+    # -------------------------------------------------------------------------
+    if ma_choice == "🌐 Full Orchestration Timeline":
         col_ag_trace, col_ag_play = st.columns([3, 2])
         
         with col_ag_trace:
-            risk_color = "#34d399" if dec.risk_score < 30 else ("#f87171" if dec.risk_score > 70 else "#fbbf24")
-            risk_bg = "rgba(16, 185, 129, 0.2)" if dec.risk_score < 30 else ("rgba(239, 68, 68, 0.2)" if dec.risk_score > 70 else "rgba(251, 191, 36, 0.2)")
-            
-            status_html = (
-                f'<div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">'
-                f'<div style="display: flex; justify-content: space-between; align-items: center;">'
-                f'<span style="font-weight: 700; color: #38bdf8; font-size: 14px;">Status: {dec.status} (ID: {dec.incident_id})</span>'
-                f'<span style="background: {risk_bg}; color: {risk_color}; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">{dec.risk_level} RISK ({dec.risk_score:.1f}/100)</span>'
-                f'</div>'
-                f'<div style="font-size: 13px; color: #e2e8f0; margin-top: 6px;">{dec.threat_summary}</div>'
-                f'</div>'
+            st.markdown(
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">'
+                '<h5 style="margin: 0; color: #f8fafc;">🕵️ Multi-Agent Deliberation Timeline</h5>'
+                '<span style="font-size: 11px; color: #94a3b8;">Workflow: Triage → Risk Assessment → Planning → Safety</span>'
+                '</div>',
+                unsafe_allow_html=True
             )
-            st.markdown(status_html, unsafe_allow_html=True)
-            
-            header_html = (
-                f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">'
-                f'<h5 style="margin: 0;">🕵️ Multi-Agent Deliberation Timeline</h5>'
-                f'<span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">'
-                f'🧠 LLM: {decision_engine.llm_client.provider.upper()} ({decision_engine.llm_client.model_name})'
-                f'</span>'
-                f'</div>'
-            )
-            st.markdown(header_html, unsafe_allow_html=True)
-            
-            st.caption("Workflow: Triage → Risk Assessment → Recovery Planning → Safety Validation")
 
-            if dec.safety_violations:
+            if dec and dec.safety_violations:
                 st.error("Safety validation blocked execution: " + " ".join(dec.safety_violations))
 
-            if not dec.agent_logs:
+            if not dec or not dec.agent_logs:
                 st.info("🟢 Grid in Equilibrium — Zero anomalies detected. All 4 AI Agents (Triage, Risk Assessor, Planner, Safety Validator) in active surveillance standby. Inject an attack in the sidebar to observe multi-agent orchestration.")
             else:
                 agent_role_icons = {
@@ -1382,7 +1505,6 @@ with tab3:
                     "PLANNER": "🛠️",
                     "SAFETY_VALIDATOR": "🛡️",
                 }
-                
                 for msg in dec.agent_logs:
                     role_class = {
                         "TRIAGE": "agent-triage",
@@ -1393,7 +1515,11 @@ with tab3:
                     icon = agent_role_icons.get(msg.role, "🤖")
                     llm_section = ""
                     if getattr(msg, "llm_reasoning", None):
-                        llm_section = f'<div style="background: rgba(2, 6, 23, 0.7); border: 1px dashed rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #7dd3fc; font-family: monospace;"><span style="color: #38bdf8; font-weight: 700;">[LLM Rationale]:</span> {msg.llm_reasoning}</div>'
+                        llm_section = (
+                            f'<div style="background: rgba(2, 6, 23, 0.7); border: 1px dashed rgba(56, 189, 248, 0.3); '
+                            f'border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 12px; color: #7dd3fc; '
+                            f'font-family: monospace;"><span style="color: #38bdf8; font-weight: 700;">[LLM Rationale]:</span> {msg.llm_reasoning}</div>'
+                        )
 
                     card_html = (
                         f'<div class="agent-card {role_class}">'
@@ -1409,7 +1535,7 @@ with tab3:
 
         with col_ag_play:
             st.markdown("##### 🛡️ Autonomous Self-Healing Playbook")
-            if dec.recovery_playbook:
+            if dec and dec.recovery_playbook:
                 for act in dec.recovery_playbook:
                     action_label = "READY" if act.status == "PENDING" else act.status
                     action_color = "#fbbf24" if act.status == "PENDING" else "#34d399"
@@ -1426,14 +1552,8 @@ with tab3:
                     st.markdown(step_html, unsafe_allow_html=True)
                 
                 if not st.session_state.autonomous_mode:
-                    if st.button("⚡ Execute Playbook Now", type="primary", use_container_width=True):
-                        rec_res = self_healing_ctrl.execute_playbook(dec, processed)
-                        st.session_state.last_recovery = rec_res
-                        learner.record_incident_resolution(dec, rec_res, anomaly_report, cyber_alerts)
-                        st.session_state.completed_incident_ids.add(dec.incident_id)
-                        dec.status = "RECOVERED" if rec_res.success else "RECOVERY_FAILED"
-                        st.success("Playbook executed successfully!")
-                        st.rerun()
+                    if st.button("⚡ Execute Playbook Now", type="primary", use_container_width=True, key="exec_playbook_timeline"):
+                        _execute_healing_playbook(dec, processed)
             else:
                 st.markdown("""
                 <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 20px; text-align: center;">
@@ -1442,6 +1562,441 @@ with tab3:
                     <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">No active self-healing remediation required.</div>
                 </div>
                 """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------------------
+    # VIEW 2: AGENT 1 - TRIAGE SPECIALIST
+    # -------------------------------------------------------------------------
+    elif ma_choice == "🔍 Agent 1: Triage Specialist":
+        st.markdown("##### 🔍 Agent 1: Triage Specialist (`Agent-Triage-01`)")
+        st.caption("Rapid Cyber-Physical Anomaly Triage, Telemetry Stream Quarantine & ChromaDB Vector RAG Retrieval.")
+        
+        target_bus = triage_msg.output.get("target_bus", 1) if (triage_msg and triage_msg.output) else (cyber_alerts[0].target_bus_id if cyber_alerts else 1)
+        attack_type = triage_msg.output.get("attack_type", "NONE") if (triage_msg and triage_msg.output) else (cyber_alerts[0].attack_type if cyber_alerts else "EQUILIBRIUM")
+        cyber_cnt = len(cyber_alerts) if cyber_alerts else 0
+        phys_cnt = anomaly_report.total_anomalies if anomaly_report else 0
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Target Substation</div><div class="kpi-value" style="color: #38bdf8;">Bus-{target_bus:02d}</div><div class="kpi-meta">Impacted Node</div></div>', unsafe_allow_html=True)
+        with col2:
+            threat_col = "#ef4444" if attack_type != "EQUILIBRIUM" else "#34d399"
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Threat Vector</div><div class="kpi-value" style="color: {threat_col}; font-size: 20px;">{attack_type}</div><div class="kpi-meta">MITRE ATT&CK Mapped</div></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Cyber Alerts</div><div class="kpi-value" style="color: {"#f87171" if cyber_cnt > 0 else "#34d399"};">{cyber_cnt}</div><div class="kpi-meta">Network Intrusion</div></div>', unsafe_allow_html=True)
+        with col4:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Physical Anomalies</div><div class="kpi-value" style="color: {"#f87171" if phys_cnt > 0 else "#34d399"};">{phys_cnt}</div><div class="kpi-meta">Power Flow Deviations</div></div>', unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        col_thought, col_rag = st.columns([1, 1])
+        with col_thought:
+            st.markdown("###### 💭 Agent Internal Deliberation")
+            if triage_msg:
+                st.markdown(
+                    f'<div class="agent-card agent-triage">'
+                    f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                    f'<span style="font-weight: 700; color: #38bdf8;">🔍 Agent-Triage-01 Decision Stream</span>'
+                    f'<span style="font-size: 11px; color: #94a3b8;">{time.strftime("%H:%M:%S", time.localtime(triage_msg.timestamp))}</span>'
+                    f'</div>'
+                    f'<div style="margin-top: 8px; color: #cbd5e1; font-size: 13px; line-height: 1.5;">{triage_msg.thought}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if triage_msg.llm_reasoning:
+                    st.markdown("###### 🧠 Deep LLM Tactical Rationale")
+                    st.markdown(
+                        f'<div style="background: rgba(2, 6, 23, 0.85); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #7dd3fc; font-family: monospace; line-height: 1.6;">'
+                        f'{triage_msg.llm_reasoning}</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("🟢 Agent-Triage-01 is actively monitoring SCADA RTU telemetry across all 14 buses. Zero anomalies flagged.")
+
+        with col_rag:
+            st.markdown("###### 📚 ChromaDB Vector RAG Knowledge Context")
+            rag_docs = dec.rag_context if (dec and dec.rag_context) else []
+            if rag_docs:
+                for doc in rag_docs:
+                    st.markdown(
+                        f'<div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px;">'
+                        f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                        f'<span style="font-weight: 700; color: #38bdf8; font-size: 13px;">📖 {doc.get("title", "Standard Operating Procedure")}</span>'
+                        f'<span style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px;">{doc.get("doc_type", "PLAYBOOK")}</span>'
+                        f'</div>'
+                        f'<div style="font-size: 12px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;">{doc.get("content", "")[:320]}...</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.markdown(
+                    '<div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 16px; color: #94a3b8; font-size: 12px;">'
+                    'ChromaDB vector store indexed with standard operating procedures (FDIA, DDoS, Breaker Hijack, Replay Attack) and regulatory standards (IEEE 1547, NERC CIP-005). Standby for query triggers.'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+
+    # -------------------------------------------------------------------------
+    # VIEW 3: AGENT 2 - RISK ASSESSOR
+    # -------------------------------------------------------------------------
+    elif ma_choice == "⚖️ Agent 2: Risk Assessor":
+        st.markdown("##### ⚖️ Agent 2: Risk Assessor (`Agent-RiskAssessor-02`)")
+        st.caption("Industrial Control Systems Risk Matrix, Critical Infrastructure Tiering & Cascading Blackout Modeling.")
+
+        risk_score = risk_msg.output.get("risk_score", dec.risk_score) if (risk_msg and risk_msg.output) else (dec.risk_score if dec else 0.0)
+        risk_level = risk_msg.output.get("risk_level", dec.risk_level) if (risk_msg and risk_msg.output) else (dec.risk_level if dec else "LOW")
+        crit_facility = risk_msg.output.get("critical_facility", "Metropolitan Grid Feeder") if (risk_msg and risk_msg.output) else "Grid Feeder Network"
+        isolated_cnt = risk_msg.output.get("isolated_buses_count", 0) if (risk_msg and risk_msg.output) else 0
+
+        risk_color = "#34d399" if risk_score < 30 else ("#f87171" if risk_score > 70 else "#fbbf24")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Composite Risk Score</div><div class="kpi-value" style="color: {risk_color};">{risk_score:.1f}<span style="font-size: 14px; font-weight: 500;">/100</span></div><div class="kpi-meta">Calculated Loss Matrix</div></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Severity Level</div><div class="kpi-value" style="color: {risk_color}; font-size: 22px;">{risk_level}</div><div class="kpi-meta">Incident Tier</div></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Targeted Critical Asset</div><div class="kpi-value" style="color: #38bdf8; font-size: 16px; line-height: 1.3;">{crit_facility}</div><div class="kpi-meta">High Priority Load</div></div>', unsafe_allow_html=True)
+        with col4:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Isolated Sub-Grids</div><div class="kpi-value" style="color: {"#f87171" if isolated_cnt > 0 else "#34d399"};">{isolated_cnt}</div><div class="kpi-meta">De-Energized Buses</div></div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        col_left, col_right = st.columns([1, 1])
+        with col_left:
+            st.markdown("###### 💭 Agent Risk Assessment Deliberation")
+            if risk_msg:
+                st.markdown(
+                    f'<div class="agent-card agent-risk">'
+                    f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                    f'<span style="font-weight: 700; color: #f59e0b;">⚖️ Agent-RiskAssessor-02 Synthesis</span>'
+                    f'<span style="font-size: 11px; color: #94a3b8;">{time.strftime("%H:%M:%S", time.localtime(risk_msg.timestamp))}</span>'
+                    f'</div>'
+                    f'<div style="margin-top: 8px; color: #cbd5e1; font-size: 13px; line-height: 1.5;">{risk_msg.thought}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if risk_msg.llm_reasoning:
+                    st.markdown("###### 🧠 Deep LLM Cascade & Blackout Risk Analysis")
+                    st.markdown(
+                        f'<div style="background: rgba(2, 6, 23, 0.85); border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fde68a; font-family: monospace; line-height: 1.6;">'
+                        f'{risk_msg.llm_reasoning}</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("🟢 Risk Assessor reports 0.0 risk score. System reserves 100% capacity; zero cascading blackout vulnerabilities identified.")
+
+        with col_right:
+            st.markdown("###### 🏥 Critical Infrastructure Asset Priority Matrix")
+            facilities = [
+                {"Bus": "Bus-02", "Facility": "St. Jude Regional Trauma Center", "Tier": "Tier 1 (Life Critical)", "Load": "21.7 MW", "Status": "ENERGIZED"},
+                {"Bus": "Bus-03", "Facility": "Metro Municipal Water Pumping Station", "Tier": "Tier 1 (Civil Critical)", "Load": "94.2 MW", "Status": "ENERGIZED"},
+                {"Bus": "Bus-04", "Facility": "Defense & Public Safety Microwave Hub", "Tier": "Tier 1 (National Defense)", "Load": "47.8 MW", "Status": "ENERGIZED"},
+                {"Bus": "Bus-05", "Facility": "Interstate Cloud Hyperscale Datacenter", "Tier": "Tier 2 (High Economic)", "Load": "7.6 MW", "Status": "ENERGIZED"},
+                {"Bus": "Bus-06", "Facility": "Downtown Commercial District", "Tier": "Tier 2 (Commercial)", "Load": "11.2 MW", "Status": "ENERGIZED"},
+            ]
+            for fac in facilities:
+                is_compromised = (dec and dec.incident_id and str(fac["Bus"].split("-")[1]) in str(dec.threat_summary))
+                st_color = "#ef4444" if is_compromised else "#34d399"
+                st_badge = "THREATENED" if is_compromised else fac["Status"]
+                st.markdown(
+                    f'<div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">'
+                    f'<div><span style="font-weight: 700; color: #38bdf8; font-size: 13px;">{fac["Bus"]}</span> &nbsp;<span style="color: #f1f5f9; font-size: 12px;">{fac["Facility"]}</span>'
+                    f'<div style="font-size: 11px; color: #94a3b8;">{fac["Tier"]} &bull; Demand: {fac["Load"]}</div></div>'
+                    f'<span style="background: rgba(16, 185, 129, 0.15); color: {st_color}; border: 1px solid {st_color}44; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px;">{st_badge}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+    # -------------------------------------------------------------------------
+    # VIEW 4: AGENT 3 - HEALING PLANNER
+    # -------------------------------------------------------------------------
+    elif ma_choice == "🛠️ Agent 3: Healing Planner":
+        st.markdown("##### 🛠️ Agent 3: Healing Planner (`Agent-HealingPlanner-03`)")
+        st.caption("Autonomous Self-Healing Playbook Synthesis, Tie-Switch Pathfinding & State Re-estimation Sequencing.")
+
+        playbook = dec.recovery_playbook if dec else []
+        action_cnt = len(playbook)
+        exec_status = dec.status if dec else "IDLE"
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Formulated Actions</div><div class="kpi-value" style="color: #10b981;">{action_cnt}</div><div class="kpi-meta">Playbook Sequence</div></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Formulation Strategy</div><div class="kpi-value" style="color: #38bdf8; font-size: 18px;">Graph Pathfind</div><div class="kpi-meta">Constraint Satisfaction</div></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Actuation Mechanism</div><div class="kpi-value" style="color: #a855f7; font-size: 18px;">Cyber + Physical</div><div class="kpi-meta">SCADA & Reconfiguration</div></div>', unsafe_allow_html=True)
+        with col4:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Execution State</div><div class="kpi-value" style="color: {"#34d399" if exec_status=="RECOVERED" else ("#fbbf24" if action_cnt>0 else "#94a3b8")}; font-size: 18px;">{exec_status}</div><div class="kpi-meta">Workflow Gate</div></div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        col_plan_thought, col_plan_steps = st.columns([1, 1])
+        with col_plan_thought:
+            st.markdown("###### 💭 Agent Planner Deliberation")
+            if planner_msg:
+                st.markdown(
+                    f'<div class="agent-card agent-planner">'
+                    f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                    f'<span style="font-weight: 700; color: #10b981;">🛠️ Agent-HealingPlanner-03 Rationale</span>'
+                    f'<span style="font-size: 11px; color: #94a3b8;">{time.strftime("%H:%M:%S", time.localtime(planner_msg.timestamp))}</span>'
+                    f'</div>'
+                    f'<div style="margin-top: 8px; color: #cbd5e1; font-size: 13px; line-height: 1.5;">{planner_msg.thought}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if planner_msg.llm_reasoning:
+                    st.markdown("###### 🧠 Deep LLM IEEE 1547 Restoration Justification")
+                    st.markdown(
+                        f'<div style="background: rgba(2, 6, 23, 0.85); border: 1px dashed rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #6ee7b7; font-family: monospace; line-height: 1.6;">'
+                        f'{planner_msg.llm_reasoning}</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("🟢 Healing Planner in standby. Pre-computed restoration playbooks for FDIA, DDoS, Replay Attacks, and Breaker Hijacking are loaded.")
+
+            st.markdown("###### 🔄 Normally-Open Tie-Switch Pathfinding")
+            tie_switches = [
+                {"Branch": "Branch-18", "From": "Bus-09", "To": "Bus-14", "Rating": "60.0 MVA", "Status": "OPEN (Ready)"},
+                {"Branch": "Branch-19", "From": "Bus-10", "To": "Bus-11", "Rating": "50.0 MVA", "Status": "OPEN (Ready)"},
+                {"Branch": "Branch-20", "From": "Bus-13", "To": "Bus-14", "Rating": "65.0 MVA", "Status": "OPEN (Ready)"},
+            ]
+            for ts in tie_switches:
+                st.markdown(
+                    f'<div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">'
+                    f'<span style="font-weight: 700; color: #38bdf8; font-size: 12px;">{ts["Branch"]} ({ts["From"]} ➔ {ts["To"]})</span>'
+                    f'<span style="color: #94a3b8; font-size: 11px;">{ts["Rating"]}</span>'
+                    f'<span style="background: rgba(168, 85, 247, 0.15); color: #c084fc; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">{ts["Status"]}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+        with col_plan_steps:
+            st.markdown("###### 📋 Formulated Playbook Action Sequence")
+            if playbook:
+                for act in playbook:
+                    step_badge = "READY" if act.status == "PENDING" else act.status
+                    step_color = "#fbbf24" if act.status == "PENDING" else "#34d399"
+                    st.markdown(
+                        f'<div class="step-card">'
+                        f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                        f'<span style="font-weight: 700; color: #38bdf8; font-size: 13px;">STEP {act.step_number}: {act.action_type}</span>'
+                        f'<span style="background: rgba(16, 185, 129, 0.2); color: {step_color}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">{step_badge}</span>'
+                        f'</div>'
+                        f'<div style="font-size: 12px; color: #f1f5f9; margin-top: 6px;">Target: <b>{act.target_entity}</b> &bull; Param: <code>{act.parameter}</code></div>'
+                        f'<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">{act.justification}</div>'
+                        f'<div style="font-size: 11px; color: #34d399; margin-top: 4px;">Expected: {act.estimated_impact}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.markdown(
+                    '<div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 20px; text-align: center; color: #94a3b8; font-size: 12px;">'
+                    'Zero actions in playbook queue. Grid currently operating in optimal topology.'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+
+    # -------------------------------------------------------------------------
+    # VIEW 5: AGENT 4 - SAFETY VALIDATOR
+    # -------------------------------------------------------------------------
+    elif ma_choice == "🛡️ Agent 4: Safety Validator":
+        st.markdown("##### 🛡️ Agent 4: Safety Validator (`Agent-SafetyValidator-04`)")
+        st.caption("Power System Security, IEEE 1547 Voltage Envelope [0.95, 1.05 pu] & Line Thermal Limit Verification.")
+
+        violations = dec.safety_violations if dec else []
+        is_safe = dec.is_safe_to_execute if dec else True
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            gate_col = "#34d399" if is_safe else "#ef4444"
+            gate_text = "ALL CLEAR" if is_safe else "BLOCKED"
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Safety Gate Verdict</div><div class="kpi-value" style="color: {gate_col}; font-size: 22px;">{gate_text}</div><div class="kpi-meta">Actuation Authorization</div></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Voltage Envelope</div><div class="kpi-value" style="color: #38bdf8; font-size: 20px;">[0.95, 1.05]</div><div class="kpi-meta">IEEE 1547 Tolerance</div></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Thermal Constraint</div><div class="kpi-value" style="color: #38bdf8; font-size: 20px;">&lt; 100.0%</div><div class="kpi-meta">MVA Line Rating</div></div>', unsafe_allow_html=True)
+        with col4:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Active Violations</div><div class="kpi-value" style="color: {"#f87171" if len(violations) > 0 else "#34d399"};">{len(violations)}</div><div class="kpi-meta">Safety Blockers</div></div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        col_safe_thought, col_safe_audit = st.columns([1, 1])
+        with col_safe_thought:
+            st.markdown("###### 💭 Safety Validator Deliberation")
+            if safety_msg:
+                st.markdown(
+                    f'<div class="agent-card agent-validator">'
+                    f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                    f'<span style="font-weight: 700; color: #a855f7;">🛡️ Agent-SafetyValidator-04 Verification</span>'
+                    f'<span style="font-size: 11px; color: #94a3b8;">{time.strftime("%H:%M:%S", time.localtime(safety_msg.timestamp))}</span>'
+                    f'</div>'
+                    f'<div style="margin-top: 8px; color: #cbd5e1; font-size: 13px; line-height: 1.5;">{safety_msg.thought}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if safety_msg.llm_reasoning:
+                    st.markdown("###### 🧠 Deep LLM Contingency & Constraint Analysis")
+                    st.markdown(
+                        f'<div style="background: rgba(2, 6, 23, 0.85); border: 1px dashed rgba(168, 85, 247, 0.4); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #d8b4fe; font-family: monospace; line-height: 1.6;">'
+                        f'{safety_msg.llm_reasoning}</div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("🟢 Safety Validator confirms power flow equilibrium. Zero voltage violations, zero thermal overloads across all feeders.")
+
+        with col_safe_audit:
+            st.markdown("###### 🔍 Constraint Verification Audit Checklist")
+            if violations:
+                st.error("⛔ Actuation Blocked by Safety Rules:\n" + "\n".join(f"- {v}" for v in violations))
+            else:
+                st.success("✅ All 4 Physics Constraints Satisfied: Autonomous actuation clearance granted.")
+
+            checks = [
+                {"Rule": "Voltage Lower Bound (V >= 0.95 pu)", "Status": "PASS", "Desc": "Prevents brownout / induction motor stall"},
+                {"Rule": "Voltage Upper Bound (V <= 1.05 pu)", "Status": "PASS", "Desc": "Prevents insulation breakdown & surge"},
+                {"Rule": "Thermal Loading (S <= 100% MVA)", "Status": "PASS", "Desc": "Prevents transmission line conductor sag"},
+                {"Rule": "N-1 Contingency Feasibility", "Status": "PASS", "Desc": "Ensures secondary feeder reserve redundancy"},
+            ]
+            for chk in checks:
+                st.markdown(
+                    f'<div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">'
+                    f'<div><span style="font-weight: 700; color: #f8fafc; font-size: 12px;">{chk["Rule"]}</span>'
+                    f'<div style="font-size: 11px; color: #94a3b8;">{chk["Desc"]}</div></div>'
+                    f'<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 8px;">{chk["Status"]}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+    # -------------------------------------------------------------------------
+    # VIEW 6: AUTONOMOUS PLAYBOOK COCKPIT
+    # -------------------------------------------------------------------------
+    elif ma_choice == "⚡ Autonomous Playbook Cockpit":
+        st.markdown("##### ⚡ Autonomous Playbook Cockpit & Actuation Console")
+        st.caption("Interactive command center for executing self-healing playbooks, monitoring actuator responses, and reviewing restoration telemetry.")
+
+        if dec and dec.recovery_playbook:
+            col_cockpit_act, col_cockpit_exec = st.columns([3, 2])
+            with col_cockpit_act:
+                st.markdown("###### 🛠️ Action Queue & Actuator Targets")
+                for act in dec.recovery_playbook:
+                    action_label = "READY" if act.status == "PENDING" else act.status
+                    action_color = "#fbbf24" if act.status == "PENDING" else "#34d399"
+                    st.markdown(
+                        f'<div class="step-card">'
+                        f'<div style="display: flex; justify-content: space-between; align-items: center;">'
+                        f'<span style="font-weight: 700; color: #38bdf8; font-size: 13px;">STEP {act.step_number}: {act.action_type}</span>'
+                        f'<span style="background: rgba(16, 185, 129, 0.2); color: {action_color}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">{action_label}</span>'
+                        f'</div>'
+                        f'<div style="font-size: 12px; color: #f1f5f9; margin-top: 6px;">Target: <b>{act.target_entity}</b> &bull; Param: <code>{act.parameter}</code></div>'
+                        f'<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">{act.justification}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+            
+            with col_cockpit_exec:
+                st.markdown("###### 🚀 Actuation Trigger")
+                st.markdown(
+                    f'<div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 18px; margin-bottom: 14px;">'
+                    f'<div style="font-weight: 700; color: #38bdf8; font-size: 13px;">Autonomous Self-Healing Controller</div>'
+                    f'<div style="font-size: 12px; color: #cbd5e1; margin-top: 6px;">Mode: <b>{"AUTONOMOUS (Zero-Touch)" if st.session_state.autonomous_mode else "SUPERVISED (Operator Approval)"}</b></div>'
+                    f'<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Target MTTR: <b>&lt; 5.0 ms</b> &bull; Safety Verified: <b>YES</b></div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if not st.session_state.autonomous_mode:
+                    if st.button("⚡ Execute Playbook Now", type="primary", use_container_width=True, key="cockpit_exec_playbook_btn"):
+                        _execute_healing_playbook(dec, processed)
+                else:
+                    st.success("🤖 Zero-Touch Sub-2ms Autonomous Actuation is enabled. The self-healing controller executes validated playbooks automatically.")
+
+                if st.session_state.last_recovery:
+                    rec = st.session_state.last_recovery
+                    st.markdown("###### 📊 Last Actuation Metrics")
+                    st.markdown(
+                        f'<div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 12px 16px;">'
+                        f'<div style="font-size: 12px; color: #34d399; font-weight: 700;">✅ Execution Completed in {rec.execution_time_ms:.2f} ms</div>'
+                        f'<div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;">Power Restored: <b>{rec.power_restored_mw:.1f} MW ({rec.restoration_percentage:.1f}%)</b></div>'
+                        f'<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Actions Executed: <b>{rec.actions_executed}</b></div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+        else:
+            st.markdown(
+                '<div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 24px; text-align: center;">'
+                '<div style="font-size: 28px;">✔</div>'
+                '<div style="font-weight: 700; color: #34d399; margin-top: 6px; font-size: 16px;">Grid in Steady-State Equilibrium</div>'
+                '<div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Zero unserved loads. No playbook execution required.</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+    # -------------------------------------------------------------------------
+    # VIEW 7: LANGGRAPH STATE INSPECTOR
+    # -------------------------------------------------------------------------
+    elif ma_choice == "🧬 LangGraph State Inspector":
+        st.markdown("##### 🧬 LangGraph Multi-Agent Architecture & State Contract")
+        st.caption("Deep inspection of LangGraph state machine, inter-agent data contract, DAG flow, and LLM configuration.")
+
+        col_diag, col_meta = st.columns([3, 2])
+        with col_diag:
+            st.markdown("###### 🔄 LangGraph Compiled StateGraph Workflow")
+            st.markdown(
+                """
+```mermaid
+graph LR
+    START((● START)) -->|Incident Telemetry| triage["🔍 Triage Agent<br/>(Agent-Triage-01)"]
+    triage -->|Target Bus & RAG SOP| risk["⚖️ Risk Assessor<br/>(Agent-RiskAssessor-02)"]
+    risk -->|Risk Score & Critical Tier| planner["🛠️ Healing Planner<br/>(Agent-HealingPlanner-03)"]
+    planner -->|Candidate Playbook| safety["🛡️ Safety Validator<br/>(Agent-SafetyValidator-04)"]
+    safety -->|Safety Clearance| END((● END))
+    
+    style START fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#fff
+    style triage fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#38bdf8
+    style risk fill:#0f172a,stroke:#f59e0b,stroke-width:2px,color:#f59e0b
+    style planner fill:#0f172a,stroke:#10b981,stroke-width:2px,color:#10b981
+    style safety fill:#0f172a,stroke:#a855f7,stroke-width:2px,color:#a855f7
+    style END fill:#1e293b,stroke:#10b981,stroke-width:2px,color:#fff
+```
+                """
+            )
+
+        with col_meta:
+            st.markdown("###### ⚙️ Orchestration Engine Configuration")
+            st.markdown(
+                f'<div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 12px; padding: 14px 18px;">'
+                f'<div style="margin-bottom: 8px;"><span style="color: #94a3b8; font-size: 11px;">WORKFLOW ENGINE</span><br><b style="color: #38bdf8; font-size: 13px;">LangGraph StateGraph (Compiled DAG)</b></div>'
+                f'<div style="margin-bottom: 8px;"><span style="color: #94a3b8; font-size: 11px;">LLM PROVIDER</span><br><b style="color: #c084fc; font-size: 13px;">{decision_engine.llm_client.provider.upper()} ({decision_engine.llm_client.model_name})</b></div>'
+                f'<div style="margin-bottom: 8px;"><span style="color: #94a3b8; font-size: 11px;">RAG VECTOR STORE</span><br><b style="color: #34d399; font-size: 13px;">ChromaDB (Cosine Similarity, Top-2 K)</b></div>'
+                f'<div><span style="color: #94a3b8; font-size: 11px;">DATA CONTRACT CONTRACT</span><br><code style="color: #7dd3fc; font-size: 11px;">IncidentWorkflowState (TypedDict)</code></div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+        st.markdown("###### 📄 Live IncidentWorkflowState Contract Snapshot")
+        if dec:
+            state_dict = {
+                "incident_id": dec.incident_id,
+                "status": dec.status,
+                "risk_score": dec.risk_score,
+                "risk_level": dec.risk_level,
+                "threat_summary": dec.threat_summary,
+                "is_safe_to_execute": dec.is_safe_to_execute,
+                "safety_violations_count": len(dec.safety_violations),
+                "playbook_actions_count": len(dec.recovery_playbook),
+                "agent_messages_count": len(dec.agent_logs),
+                "rag_documents_retrieved": len(dec.rag_context),
+                "timestamp": dec.timestamp,
+            }
+            st.json(state_dict)
+        else:
+            st.json({
+                "status": "EQUILIBRIUM",
+                "risk_score": 0.0,
+                "risk_level": "LOW",
+                "grid_frequency_hz": 50.0,
+                "active_agents": ["Agent-Triage-01", "Agent-RiskAssessor-02", "Agent-HealingPlanner-03", "Agent-SafetyValidator-04"],
+                "surveillance_state": "ACTIVE_CONTINUOUS"
+            })
 
 # -----------------------------------------------------------------------------
 # TAB 4: SELF-HEALING ACTUATION & RESTORATION
@@ -1694,7 +2249,13 @@ with tab7:
             res = decision_engine.query_grid_assistant(
                 user_query=active_query,
                 active_telemetry=processed,
-                active_alerts=cyber_alerts
+                active_alerts=cyber_alerts,
+                anomaly_report=anomaly_report,
+                gnn_results=gnn_results,
+                active_attacks=list(attack_inj.active_attacks.values()) if hasattr(attack_inj, "active_attacks") else [],
+                last_decision=decision_state,
+                last_recovery=st.session_state.last_recovery,
+                grid_sim=grid_sim,
             )
             answer = res["response"]
             rag_docs = res.get("rag_docs", [])

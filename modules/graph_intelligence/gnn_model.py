@@ -3,6 +3,7 @@ Module 3: Graph Intelligence Engine - PyTorch Graph Neural Network (GNN).
 Spatial Graph Convolutional Network for power grid anomaly detection and threat propagation analysis.
 """
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -126,7 +127,14 @@ class GridGNNAnomalyDetector:
             node_scores[b_id] = round(err_val, 4)
             embed_dict[b_id] = embed_np[idx].tolist()
 
-        max_err = max(node_scores.values()) if node_scores else 0.0
+        if node_scores:
+            worst_err = float(max(node_scores.values()))
+            total_dev = float(sum(node_scores.values()))
+            # Compound spatial GNN residual reflecting localized error + multi-node disturbance
+            compound_residual = worst_err + 0.15 * math.log1p(total_dev)
+            max_err = compound_residual
+        else:
+            max_err = 0.0
 
         return {
             "node_anomaly_scores": node_scores,
